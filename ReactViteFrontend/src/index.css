@@ -1,0 +1,91 @@
+@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 210 40% 98%;
+    --card: 217 33% 17%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 186 78% 53%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 186 78% 53%;
+    --radius: 0.5rem;
+  }
+
+  body {
+    @apply bg-[#0F1419] text-white font-sans antialiased;
+  }
+}
+
+@layer components {
+
+  /* Glass Panel - Simplified */
+  .glass-panel {
+    @apply bg-[#1A2332]/80 backdrop-blur-md border border-white/10 rounded-xl shadow-lg;
+  }
+
+  /* Primary Button - Fixed Shadow Syntax */
+  .btn-primary {
+    @apply px-6 py-3 rounded-lg font-bold text-sm bg-[#22D3EE] text-[#023047] transition-all hover:bg-[#06B6D4] active:scale-95;
+    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
+    /* Pure CSS instead of Tailwind JIT */
+  }
+
+  /* Product Card */
+  .card-product {
+    @apply relative overflow-hidden rounded-xl border border-white/5 bg-[#1A2332]/60 hover:border-[#22D3EE]/30 hover:-translate-y-1 transition-all cursor-pointer;
+  }
+}
+
+@layer utilities {
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Thin custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.3) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.3);
+    border-radius: 3px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 211, 238, 0.5);
+  }
+}
