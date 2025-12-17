@@ -7,15 +7,16 @@ import { useCartStore } from '@/modules/sales/store/cartStore';
 
 /**
  * CartPanel Organism
- * Smart component connected to cartStore with LEGACY_POS_SPEC animations
+ * Smart component with LEGACY_POS_SPEC animations and FIXED bottom padding
  * 
  * Features (per spec):
- * - Fixed position: left-0 top-0 bottom-0, width 380px, z-50
+ * - Fixed position: left-0 top-0 bottom-0, width 380px, z-40 (CORRECTED)
  * - Background: #1a1c1e with glass effects
  * - Spring physics: damping 30, stiffness 300
  * - Slide animation: x: '-100%' -> 0
  * - Item animations: stagger 20ms, collapse on exit
  * - Fixed footer with summary
+ * - PADDING FIX: pb-32 on items list to prevent overlap with POSBottomBar
  * 
  * @example
  * <CartPanel />
@@ -34,7 +35,7 @@ export function CartPanel() {
                 damping: 30,      // Spring physics per LEGACY_POS_SPEC
                 stiffness: 300
             }}
-            className="fixed left-0 top-0 bottom-0 w-[380px] bg-[#1a1c1e] border-r border-[rgba(255,255,255,0.1)] shadow-[4px_0_24px_rgba(0,0,0,0.15)] z-50 flex flex-col"
+            className="fixed left-0 top-0 bottom-0 w-[380px] bg-[#1a1c1e] border-r border-[rgba(255,255,255,0.1)] shadow-[4px_0_24px_rgba(0,0,0,0.15)] z-40 flex flex-col"
         >
             {/* Header - Glass effect per spec */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-[rgba(255,255,255,0.1)] bg-[rgba(255,255,255,0.05)] flex-shrink-0">
@@ -60,8 +61,10 @@ export function CartPanel() {
                 )}
             </div>
 
-            {/* Body - Cart Items with AnimatePresence */}
-            <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+            {/* Body - Cart Items with AnimatePresence + PADDING FIX */}
+            <div className="flex-1 overflow-y-auto p-4 pb-32 custom-scrollbar">
+                {/* CRITICAL: pb-32 ensures last item is visible above POSBottomBar */}
+
                 {items.length === 0 ? (
                     // Empty State
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
@@ -69,7 +72,7 @@ export function CartPanel() {
                             <ShoppingCart className="w-10 h-10 text-slate-600" />
                         </div>
                         <div>
-                            <h3 className="text-lg font-bold text-slate-200 mb-2">
+                            <h3 className="text-lg font-['Almarai'] font-bold text-slate-200 mb-2">
                                 السلة فارغة
                             </h3>
                             <p className="text-sm text-slate-500 max-w-[200px] mx-auto leading-relaxed">
@@ -155,7 +158,7 @@ export function CartPanel() {
                     {/* Checkout Button - Gradient per spec */}
                     <Button
                         size="xl"
-                        className="w-full h-14 text-lg font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-lg shadow-emerald-500/20 border-0"
+                        className="w-full h-14 text-lg font-['Almarai'] font-bold bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 shadow-lg shadow-emerald-500/20 border-0"
                         onClick={() => {
                             // TODO: Navigate to checkout or open payment modal
                             console.log('Proceed to checkout');

@@ -1,7 +1,6 @@
 import { ShoppingCart, Printer, ChefHat, Pause, RotateCcw, User } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Button } from '@/shared/components/atoms/Button';
 import { useCartStore } from '@/modules/sales/store/cartStore';
 
 export interface POSBottomBarProps {
@@ -10,8 +9,8 @@ export interface POSBottomBarProps {
     onKitchen?: () => void;
     onHold?: () => void;
     onRefund?: () => void;
-    onCartToggle?: () => void; // NEW: Cart toggle handler
-    isCartOpen?: boolean; // NEW: Cart open state
+    onCartToggle?: () => void;
+    isCartOpen?: boolean;
     userName?: string;
     shiftStatus?: string;
     className?: string;
@@ -19,15 +18,13 @@ export interface POSBottomBarProps {
 
 /**
  * POSBottomBar Organism
- * Floating action bar with cart toggle functionality
+ * Position-agnostic action bar - positioning controlled by parent
  * 
  * Features (per spec):
- * - Fixed position: bottom-0, left-0, right-80 (exclude sidebar)
- * - Z-index: 60 (above all panels)
- * - Background: rgba(26,28,30,0.98) with backdrop-blur-xl
+ * - NO fixed positioning (controlled by POSLayout wrapper)
  * - Gradient buttons per spec
  * - Real-time total from useCartStore
- * - Cart toggle button (NEW)
+ * - Cart toggle button with visual feedback
  * - Hover animations: scale(1.05) / tap: scale(0.95)
  * 
  * @example
@@ -56,17 +53,17 @@ export function POSBottomBar({
     return (
         <div
             className={cn(
-                // Fixed positioning per spec (z-60)
-                'fixed bottom-0 left-0 right-20',
+                // Position-agnostic: fills container (controlled by POSLayout)
+                'w-full h-full',
                 // Glass bar styling per spec
                 'bg-[rgba(26,28,30,0.98)] backdrop-blur-xl',
                 'border-t border-[rgba(255,255,255,0.1)]',
-                'shadow-2xl z-60',
+                'shadow-2xl',
                 className
             )}
         >
-            <div className="container mx-auto px-4 py-3">
-                <div className="flex items-center justify-between gap-2">
+            <div className="container mx-auto px-4 py-3 h-full flex items-center">
+                <div className="flex items-center justify-between gap-2 w-full">
 
                     {/* Left: Quick Action Buttons */}
                     <div className="flex items-center gap-2">

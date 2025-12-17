@@ -1,24 +1,28 @@
 import { useState } from 'react';
 import { Search, AlertCircle } from 'lucide-react';
-import { motion } from 'framer-motion';
 import { Button } from '@/shared/components/atoms/Button';
 import { ProductCard } from '@/shared/components/molecules/ProductCard';
 import { useProducts, useCategories } from '@/modules/products/hooks/useProducts';
+import type { Product } from '@/modules/products/types/product.types';
+
+export interface ProductBrowserProps {
+    onAddToCart?: (product: Product) => void;
+}
 
 /**
  * ProductBrowser Organism
- * Smart component with LEGACY_POS_SPEC category pills and glass search
+ * Smart component with LEGACY_POS_SPEC styling and improved grid density
  * 
  * Features (per spec):
  * - Category Pills: Rounded-full glass styling, active state with cyan
  * - Search Input: Glass input with icon
- * - Product Grid: Responsive with stagger animation (index prop)
+ * - Product Grid: Responsive 2/3/4/5 columns with stagger animation
  * - Loading/Error/Empty states
  * 
  * @example
- * <ProductBrowser onProductClick={handleAddToCart} />
+ * <ProductBrowser onAddToCart={handleAddToCart} />
  */
-export function ProductBrowser() {
+export function ProductBrowser({ onAddToCart }: ProductBrowserProps) {
     const [selectedCategory, setSelectedCategory] = useState<string | undefined>();
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -45,14 +49,14 @@ export function ProductBrowser() {
         <div className="flex flex-col h-full space-y-6">
             {/* Categories + Search */}
             <div className="space-y-4">
-                {/* Category Pills - Per LEGACY_POS_SPEC Section 5.6 */}
+                {/* Category Pills - Glass Style per LEGACY_POS_SPEC */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
                     {/* "All" Pill */}
                     <button
                         onClick={() => setSelectedCategory(undefined)}
                         className={
                             !selectedCategory
-                                ? "px-6 py-2.5 rounded-full text-sm font-['Almarai'] transition-all whitespace-nowrap bg-cyan-400 text-[#00373a] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.3),0px_2px_6px_2px_rgba(0,0,0,0.15)]"
+                                ? "px-6 py-2.5 rounded-full text-sm font-['Almarai'] font-bold transition-all whitespace-nowrap bg-cyan-400 text-[#00373a] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.3),0px_2px_6px_2px_rgba(0,0,0,0.15)]"
                                 : "px-6 py-2.5 rounded-full text-sm font-['Almarai'] transition-all whitespace-nowrap bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#c2c7ce] hover:border-cyan-400/50"
                         }
                     >
@@ -76,7 +80,7 @@ export function ProductBrowser() {
                                 onClick={() => setSelectedCategory(category.id)}
                                 className={
                                     selectedCategory === category.id
-                                        ? "px-6 py-2.5 rounded-full text-sm font-['Almarai'] transition-all whitespace-nowrap bg-cyan-400 text-[#00373a] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.3),0px_2px_6px_2px_rgba(0,0,0,0.15)]"
+                                        ? "px-6 py-2.5 rounded-full text-sm font-['Almarai'] font-bold transition-all whitespace-nowrap bg-cyan-400 text-[#00373a] shadow-[0px_1px_2px_0px_rgba(0,0,0,0.3),0px_2px_6px_2px_rgba(0,0,0,0.15)]"
                                         : "px-6 py-2.5 rounded-full text-sm font-['Almarai'] transition-all whitespace-nowrap bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.1)] text-[#c2c7ce] hover:border-cyan-400/50"
                                 }
                             >
@@ -86,7 +90,7 @@ export function ProductBrowser() {
                     )}
                 </div>
 
-                {/* Search Input - Glass Style per LEGACY_POS_SPEC Section 5.7 */}
+                {/* Search Input - Glass Style per LEGACY_POS_SPEC */}
                 <div className="flex-1 relative">
                     <input
                         value={searchTerm}
@@ -99,12 +103,12 @@ export function ProductBrowser() {
                 </div>
             </div>
 
-            {/* Products Grid */}
+            {/* Products Grid - Improved density with 5 columns on XL */}
             <div className="flex-1 overflow-y-auto custom-scrollbar">
                 {/* Loading State */}
                 {productsLoading && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                        {Array.from({ length: 8 }).map((_, i) => (
+                        {Array.from({ length: 10 }).map((_, i) => (
                             <div
                                 key={i}
                                 className="h-64 bg-[rgba(255,255,255,0.05)] rounded-xl animate-pulse"
@@ -118,7 +122,7 @@ export function ProductBrowser() {
                     <div className="flex flex-col items-center justify-center h-64 space-y-4">
                         <AlertCircle className="w-16 h-16 text-red-400" />
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-[#e2e2e6] mb-2">
+                            <h3 className="text-lg font-['Almarai'] font-bold text-[#e2e2e6] mb-2">
                                 حدث خطأ في تحميل المنتجات
                             </h3>
                             <p className="text-sm text-[#c2c7ce] mb-4">
@@ -135,7 +139,7 @@ export function ProductBrowser() {
                 {!productsLoading && !isError && products.length === 0 && (
                     <div className="flex flex-col items-center justify-center h-64 space-y-4">
                         <div className="text-center">
-                            <h3 className="text-lg font-bold text-[#e2e2e6] mb-2">
+                            <h3 className="text-lg font-['Almarai'] font-bold text-[#e2e2e6] mb-2">
                                 لا توجد منتجات
                             </h3>
                             <p className="text-sm text-[#c2c7ce]">
@@ -147,18 +151,17 @@ export function ProductBrowser() {
                     </div>
                 )}
 
-                {/* Products Grid with Stagger Animation */}
+                {/* Products Grid - Improved density: 2/3/4/5 columns */}
                 {!productsLoading && !isError && products.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 pb-4">
                         {products.map((product, index) => (
                             <ProductCard
                                 key={product.id}
                                 product={product}
-                                index={index} // Pass index for stagger animation
-                                onClick={(product) => {
-                                    // TODO: Add to cart logic will be wired here
+                                index={index} // Pass index for stagger animation (30ms delay)
+                                onClick={onAddToCart || ((product) => {
                                     console.log('Add to cart:', product.name);
-                                }}
+                                })}
                             />
                         ))}
                     </div>
