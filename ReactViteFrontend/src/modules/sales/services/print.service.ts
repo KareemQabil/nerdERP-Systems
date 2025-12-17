@@ -1,159 +1,249 @@
-import type { CartItem, Customer, Table, OrderType, Discount, PaymentMethod } from '../types/pos.types';
+import type { SalesOrder } from '@/modules/sales/types/order.types';
+import type { KitchenTicket } from '@/modules/kitchen/types/kitchen.types';
 
-interface ReceiptData {
+/**
+ * Print Job Type
+ */
+export type PrintJobType = 'RECEIPT' | 'KITCHEN' | 'REPORT';
+
+/**
+ * Print Job Interface
+ */
+export interface PrintJob {
+    id: string;
+    type: PrintJobType;
+    data: any;
+    timestamp: string;
+    status: 'pending' | 'printing' | 'success' | 'failed';
+    error?: string;
+}
+
+/**
+ * Receipt Data Interface
+ */
+export interface ReceiptData {
+    order: SalesOrder;
+    storeName: string;
+    storeAddress: string;
+    storeTaxId: string;
+    cashierName: string;
+    printDate: string;
+}
+
+/**
+ * Kitchen Ticket Print Data
+ */
+export interface KitchenTicketPrintData {
+    ticket: KitchenTicket;
     orderNumber: string;
-    timestamp: Date;
-    cashier: string;
-    items: CartItem[];
-    subtotal: number;
-    tax: number;
-    discount: number;
-    total: number;
-    orderType: OrderType;
-    customer?: Customer;
-    table?: Table;
-    appliedDiscount?: { discount: Discount; value: number } | null;
-    paymentMethod?: PaymentMethod;
-    paidAmount?: number;
-    change?: number;
+    tableName?: string;
+    printDate: string;
 }
 
 /**
  * Print Service
- * Handles receipt printing simulation
+ * Hardware abstraction layer for printing
+ * PRODUCTION: Integrates with ESC/POS printers, Star printers, etc.
+ * DEVELOPMENT: Console simulation
  */
 export class PrintService {
+    private static printerConfig = {
+        receiptPrinter: {
+            name: 'Receipt Printer',
+            type: 'ESC/POS',
+            width: 42, // characters
+            connected: true,
+        },
+        kitchenPrinter: {
+            name: 'Kitchen Printer',
+            type: 'ESC/POS',
+            width: 48,
+            connected: true,
+        },
+    };
+
     /**
-     * Print a receipt
-     * In production, this would send to a thermal printer via USB or network
-     * For now, it simulates printing by logging and returning success
+     * Print receipt
+     * @param receiptData - Order and store information
      */
-    static async printReceipt(data: ReceiptData): Promise<boolean> {
-        try {
-            console.log('🖨️ Printing Receipt...');
-            console.log('═'.repeat(40));
-            console.log(`Order #: ${data.orderNumber}`);
-            console.log(`Date: ${data.timestamp.toLocaleString('ar-SA')}`);
-            console.log(`Cashier: ${data.cashier}`);
-            console.log(`Type: ${data.orderType}`);
+    static async printReceipt(receiptData: ReceiptData): Promise<void> {
+        const isDev = import.meta.env.DEV;
 
-            if (data.customer) {
-                console.log(`Customer: ${data.customer.name}`);
-                console.log(`Phone: ${data.customer.phone}`);
+        if (isDev) {
+            // Console simulation
+            console.log('\n╔════════════════════════════════════════╗');
+            console.log('║          RECEIPT PRINT JOB             ║');
+            console.log('╚════════════════════════════════════════╝\n');
+            console.log(`Store: ${receiptData.storeName}`);
+            console.log(`Address: ${receiptData.storeAddress}`);
+            console.log(`Tax ID: ${receiptData.storeTaxId}`);
+            console.log('─'.repeat(42));
+            console.log(`Order: ${receiptData.order.orderNumber}`);
+            console.log(`Date: ${new Date(receiptData.printDate).toLocaleString('ar-SA')}`);
+            console.log(`Cashier: ${receiptData.cashierName}`);
+            console.log('─'.repeat(42));
+
+            // Items
+            if (receiptData.order.items) {
+                receiptData.order.items.forEach(item => {
+                    const qty = item.quantity;
+                    const name = item.productName;
+                    const price = item.lineTotal;
+                    console.log(`${qty}x ${name}`.padEnd(30) + price.padStart(12));
+
+                    // Modifiers
+                    if (item.selectedModifiers && item.selectedModifiers.length > 0) {
+                        item.selectedModifiers.forEach(mod => {
+                            console.log(`   + ${mod.modifierName}: ${mod.optionName}`);
+                        });
+                    }
+
+                    // Special instructions
+                    if (item.specialInstructions) {
+                        console.log(`   Note: ${item.specialInstructions}`);
+                    }
+                });
             }
 
-            if (data.table) {
-                console.log(`Table: ${data.table.number}`);
+            console.log('─'.repeat(42));
+            console.log('Subtotal:'.padEnd(30) + receiptData.order.subtotal.padStart(12));
+
+            if (receiptData.order.discountAmount !== '0.000') {
+                console.log('Discount:'.padEnd(30) + `-${receiptData.order.discountAmount}`.padStart(12));
             }
 
-            console.log('─'.repeat(40));
-            console.log('Items:');
-            data.items.forEach((item) => {
-                console.log(`  ${item.quantity}x ${item.product.name} - ${item.total.toFixed(2)} SAR`);
-                if (item.modifiers && item.modifiers.length > 0) {
-                    item.modifiers.forEach((mod) => {
-                        console.log(`    + ${mod.name} (+${mod.price.toFixed(2)} SAR)`);
-                    });
-                }
-                if (item.specialInstructions) {
-                    console.log(`    Note: ${item.specialInstructions}`);
-                }
-            });
+            console.log('Tax (15%):'.padEnd(30) + receiptData.order.totalTax.padStart(12));
+            console.log('═'.repeat(42));
+            console.log('TOTAL:'.padEnd(30) + receiptData.order.totalGross.padStart(12) + ' SAR');
+            console.log('═'.repeat(42));
 
-            console.log('─'.repeat(40));
-            console.log(`Subtotal: ${data.subtotal.toFixed(2)} SAR`);
-            console.log(`Tax (15%): ${data.tax.toFixed(2)} SAR`);
-
-            if (data.discount > 0) {
-                console.log(`Discount: -${data.discount.toFixed(2)} SAR`);
-                if (data.appliedDiscount) {
-                    const { discount } = data.appliedDiscount;
-                    console.log(`  (${discount.name})`);
-                }
+            // ZATCA QR Code (if exists)
+            if (receiptData.order.zatcaQrCode) {
+                console.log('\nZATCA QR Code:');
+                console.log(`[QR: ${receiptData.order.zatcaQrCode.slice(0, 20)}...]`);
             }
 
-            console.log('═'.repeat(40));
-            console.log(`TOTAL: ${data.total.toFixed(2)} SAR`);
+            console.log('\nThank you for your visit!');
+            console.log('شكراً لزيارتكم');
+            console.log('\n' + '═'.repeat(42) + '\n');
 
-            if (data.paymentMethod) {
-                console.log(`Payment: ${data.paymentMethod.toUpperCase()}`);
-                if (data.paidAmount) {
-                    console.log(`Paid: ${data.paidAmount.toFixed(2)} SAR`);
-                }
-                if (data.change && data.change > 0) {
-                    console.log(`Change: ${data.change.toFixed(2)} SAR`);
-                }
-            }
-
-            console.log('═'.repeat(40));
-            console.log('Thank you! شكراً لك');
-            console.log('═'.repeat(40));
-
-            // Simulate printer delay
-            await new Promise(resolve => setTimeout(resolve, 1500));
-
-            // In production, you would:
-            // 1. Format receipt as ESC/POS commands
-            // 2. Send to printer via USB/network
-            // 3. Handle printer errors
-            // 4. Support different printer models
-
-            return true;
-        } catch (error) {
-            console.error('Print failed:', error);
-            return false;
+            // Simulate print delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+            // Production: Send to actual printer
+            // Integration with printer library (e.g., escpos, react-thermal-printer)
+            await this.sendToPrinter('RECEIPT', receiptData);
         }
     }
 
     /**
      * Print kitchen ticket
-     * Simplified ticket for kitchen display
+     * @param ticketData - Kitchen ticket information
      */
-    static async printKitchenTicket(
-        orderNumber: string,
-        items: CartItem[],
-        orderType: OrderType,
-        table?: Table,
-        notes?: string
-    ): Promise<boolean> {
-        try {
-            console.log('🍳 Printing Kitchen Ticket...');
-            console.log('═'.repeat(30));
-            console.log(`ORDER: ${orderNumber}`);
-            console.log(`Time: ${new Date().toLocaleTimeString('ar-SA')}`);
-            console.log(`Type: ${orderType.toUpperCase()}`);
+    static async printKitchenTicket(ticketData: KitchenTicketPrintData): Promise<void> {
+        const isDev = import.meta.env.DEV;
 
-            if (table) {
-                console.log(`TABLE: ${table.number}`);
+        if (isDev) {
+            // Console simulation
+            console.log('\n╔════════════════════════════════════════════╗');
+            console.log('║         KITCHEN TICKET PRINT               ║');
+            console.log('╚════════════════════════════════════════════╝\n');
+            console.log(`╔═══ ${ticketData.ticket.ticketNumber} ═══╗`);
+            console.log(`Order: ${ticketData.orderNumber}`);
+            if (ticketData.tableName) {
+                console.log(`Table: ${ticketData.tableName}`);
+            }
+            console.log(`Time: ${new Date(ticketData.printDate).toLocaleTimeString('ar-SA')}`);
+            console.log('─'.repeat(48));
+
+            // Product
+            console.log(`\n${ticketData.ticket.quantity}x ${ticketData.ticket.productName}`);
+
+            // Modifiers
+            if (ticketData.ticket.modifiersText) {
+                console.log(`\nModifiers: ${ticketData.ticket.modifiersText}`);
             }
 
-            console.log('─'.repeat(30));
-
-            items.forEach((item) => {
-                console.log(`${item.quantity}x ${item.product.name}`);
-                if (item.modifiers && item.modifiers.length > 0) {
-                    item.modifiers.forEach((mod) => {
-                        console.log(`  + ${mod.name}`);
-                    });
-                }
-                if (item.specialInstructions) {
-                    console.log(`  ⚠️ ${item.specialInstructions}`);
-                }
-            });
-
-            if (notes) {
-                console.log('─'.repeat(30));
-                console.log(`NOTES: ${notes}`);
+            // Special instructions (EMPHASIZED)
+            if (ticketData.ticket.specialInstructions) {
+                console.log('\n⚠️  SPECIAL INSTRUCTIONS:');
+                console.log(`   ${ticketData.ticket.specialInstructions}`);
             }
 
-            console.log('═'.repeat(30));
+            // Priority indicator
+            if (ticketData.ticket.priority > 0) {
+                console.log(`\n🔥 PRIORITY: ${ticketData.ticket.priority}`);
+            }
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            console.log('\n' + '═'.repeat(48) + '\n');
 
-            return true;
-        } catch (error) {
-            console.error('Kitchen print failed:', error);
-            return false;
+            // Simulate print delay
+            await new Promise(resolve => setTimeout(resolve, 300));
+        } else {
+            // Production: Send to kitchen printer
+            await this.sendToPrinter('KITCHEN', ticketData);
         }
+    }
+
+    /**
+     * Print end-of-day report (Z-Report)
+     * @param reportData - Session and sales summary
+     */
+    static async printZReport(reportData: any): Promise<void> {
+        const isDev = import.meta.env.DEV;
+
+        if (isDev) {
+            console.log('\n╔════════════════════════════════════════╗');
+            console.log('║          Z-REPORT (END OF DAY)         ║');
+            console.log('╚════════════════════════════════════════╝\n');
+            console.log(`Session: ${reportData.sessionNumber}`);
+            console.log(`Date: ${new Date().toLocaleDateString('ar-SA')}`);
+            console.log('─'.repeat(42));
+            console.log('Sales Summary:');
+            console.log(`  Total Sales: ${reportData.totalSales} SAR`);
+            console.log(`  Cash Payments: ${reportData.cashPayments} SAR`);
+            console.log(`  Card Payments: ${reportData.cardPayments} SAR`);
+            console.log('─'.repeat(42));
+            console.log('Cash Summary:');
+            console.log(`  Opening Cash: ${reportData.openingCash} SAR`);
+            console.log(`  Expected Cash: ${reportData.expectedCash} SAR`);
+            console.log(`  Actual Cash: ${reportData.actualCash} SAR`);
+            console.log(`  Difference: ${reportData.difference} SAR`);
+            console.log('═'.repeat(42) + '\n');
+
+            await new Promise(resolve => setTimeout(resolve, 800));
+        } else {
+            await this.sendToPrinter('REPORT', reportData);
+        }
+    }
+
+    /**
+     * Send data to physical printer
+     * (Production implementation)
+     */
+    private static async sendToPrinter(type: PrintJobType, data: any): Promise<void> {
+        // Production implementation:
+        // 1. Format data according to printer protocol (ESC/POS, StarPRNT, etc.)
+        // 2. Send to printer via USB, Network, or Bluetooth
+        // 3. Handle printer errors
+
+        console.log(`[PRODUCTION] Sending ${type} to printer...`);
+        // Example: await escpos.print(formattedData);
+    }
+
+    /**
+     * Check printer status
+     */
+    static async checkPrinterStatus(printerType: 'receipt' | 'kitchen'): Promise<boolean> {
+        const isDev = import.meta.env.DEV;
+
+        if (isDev) {
+            // Simulate printer check
+            return true;
+        }
+
+        // Production: Query actual printer status
+        // Return: printer online/offline, paper status, errors
+        return this.printerConfig[`${printerType}Printer`].connected;
     }
 }

@@ -1,6 +1,6 @@
 import { createBrowserRouter } from 'react-router-dom';
 import { MainLayout } from '@/shared/components/Layout/MainLayout';
-import { OrdersPage } from '@/modules/sales/pages/OrdersPage';
+import POSRefinedScreen from '@/modules/sales/pages/OrdersPage';
 
 export const router = createBrowserRouter([
     {
@@ -9,7 +9,7 @@ export const router = createBrowserRouter([
         children: [
             {
                 index: true,
-                element: <OrdersPage />,
+                element: <POSRefinedScreen />,
             },
             // Other routes placeholders
             { path: 'tables', element: <div>Tables Page</div> },

@@ -1,13 +1,42 @@
-@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Inter:wght@400;500;600;700&display=swap');
+/* Google Fonts - Almarai (Arabic) and Inter (English/Numbers) */
+@import url('https://fonts.googleapis.com/css2?family=Almarai:wght@400;700;800&family=Inter:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+
+  /* Legacy POS Color Variables */
   :root {
+    /* Background Colors */
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
+    --surface-1: #1a1c1e;
+    --surface-2: #2a2d32;
+    --surface-variant: rgba(255, 255, 255, 0.05);
+
+    /* Border Colors */
+    --border-primary: rgba(255, 255, 255, 0.1);
+    --border-active: rgba(34, 211, 238, 0.5);
+
+    /* Text Colors */
+    --text-primary: #e2e2e6;
+    --text-secondary: #c2c7ce;
+    --text-disabled: #6b7280;
+
+    /* Brand Colors */
+    --cyan-primary: #22d3ee;
+    --cyan-dark: #0891b2;
+    --cyan-darker: #006399;
+
+    /* Semantic Colors */
+    --success: #10b981;
+    --error: #ef4444;
+    --warning: #f59e0b;
+    --info: #3b82f6;
+
+    /* Shadcn Compatibility */
     --card: 217 33% 17%;
     --card-foreground: 210 40% 98%;
     --popover: 222 47% 11%;
@@ -28,8 +57,63 @@
     --radius: 0.5rem;
   }
 
+  /* Full height configuration */
+  html,
+  body,
+  #root {
+    @apply h-full min-h-screen;
+  }
+
+  /* Global body styling */
   body {
-    @apply bg-[#0F1419] text-white font-sans antialiased;
+    /* LEGACY_POS_SPEC: Deep ocean blue gradient (IMMUTABLE) */
+    background: linear-gradient(to bottom, #023047, #001219);
+    background-attachment: fixed;
+    font-family: 'Inter', 'Almarai', sans-serif;
+    color: var(--text-primary);
+    direction: rtl;
+    /* RTL for Arabic */
+  }
+
+  /* Text selection styling */
+  ::selection {
+    background-color: rgba(34, 211, 238, 0.3);
+    /* cyan-500/30 */
+    color: #ecfeff;
+    /* cyan-50 */
+  }
+
+  ::-moz-selection {
+    background-color: rgba(34, 211, 238, 0.3);
+    color: #ecfeff;
+  }
+
+  /* Custom scrollbar styling (Webkit) */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.3);
+    /* cyan-500/30 */
+    border-radius: 9999px;
+    /* rounded-full */
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 211, 238, 0.5);
+    /* cyan-500/50 */
+  }
+
+  /* Firefox scrollbar styling */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 211, 238, 0.3) transparent;
   }
 }
 
@@ -37,19 +121,18 @@
 
   /* Glass Panel - Simplified */
   .glass-panel {
-    @apply bg-[#1A2332]/80 backdrop-blur-md border border-white/10 rounded-xl shadow-lg;
+    @apply bg-[rgba(255, 255, 255, 0.05)] backdrop-blur-sm border border-[rgba(255, 255, 255, 0.1)] rounded-xl shadow-lg;
   }
 
-  /* Primary Button - Fixed Shadow Syntax */
+  /* Primary Button - Gradient */
   .btn-primary {
-    @apply px-6 py-3 rounded-lg font-bold text-sm bg-[#22D3EE] text-[#023047] transition-all hover:bg-[#06B6D4] active:scale-95;
-    box-shadow: 0 0 15px rgba(34, 211, 238, 0.4);
-    /* Pure CSS instead of Tailwind JIT */
+    @apply px-6 py-3 rounded-lg font-bold text-sm bg-gradient-to-b from-[#22d3ee] to-[#006399] text-[#00373a] transition-all hover:opacity-90;
+    box-shadow: 0px 1px 2px 0px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15);
   }
 
   /* Product Card */
   .card-product {
-    @apply relative overflow-hidden rounded-xl border border-white/5 bg-[#1A2332]/60 hover:border-[#22D3EE]/30 hover:-translate-y-1 transition-all cursor-pointer;
+    @apply relative overflow-hidden rounded-xl border border-[rgba(255, 255, 255, 0.1)] bg-[rgba(255, 255, 255, 0.05)] hover:border-cyan-400/50 transition-all cursor-pointer;
   }
 }
 
@@ -87,5 +170,23 @@
 
   .scrollbar-thin::-webkit-scrollbar-thumb:hover {
     background: rgba(34, 211, 238, 0.5);
+  }
+
+  /* Custom scrollbar for cart panel */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(34, 211, 238, 0.2);
+    border-radius: 2px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(34, 211, 238, 0.4);
   }
 }
