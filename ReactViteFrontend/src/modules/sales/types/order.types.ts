@@ -3,9 +3,7 @@
 /**
  * Order Type enum
  */
-export type OrderType = '
-
-DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'DRIVE_THRU';
+export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'DRIVE_THRU' | 'DELIVERY_UBEREATS';
 
 /**
  * Order Status enum

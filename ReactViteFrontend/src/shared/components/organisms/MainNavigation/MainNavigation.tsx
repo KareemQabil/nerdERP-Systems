@@ -1,10 +1,12 @@
-import { Home, ShoppingCart, ClipboardList, Users, Package, Settings } from 'lucide-react';
+import { Home, ShoppingCart, ClipboardList, Users, Package, Settings, User, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export interface MainNavigationProps {
     activeRoute?: string;
     onNavigate?: (route: string) => void;
+    onShift?: () => void;
+    onLock?: () => void;
 }
 
 interface NavItem {
@@ -44,16 +46,10 @@ const NAV_ITEMS: NavItem[] = [
  * @example
  * <MainNavigation activeRoute="/pos" onNavigate={(route) => navigate(route)} />
  */
-export function MainNavigation({ activeRoute = '/pos', onNavigate }: MainNavigationProps) {
+export function MainNavigation({ activeRoute = '/pos', onNavigate, onShift, onLock }: MainNavigationProps) {
     return (
         <nav className="fixed right-0 top-0 bottom-0 w-20 bg-gradient-to-b from-[#023047] to-[#001219] border-l border-[rgba(255,255,255,0.1)] shadow-2xl z-50 flex flex-col">
 
-            {/* Logo Section - 80px height per spec */}
-            <div className="h-20 flex items-center justify-center border-b border-[rgba(255,255,255,0.1)]">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-400 to-cyan-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
-                    <ShoppingCart className="w-6 h-6 text-[#023047]" />
-                </div>
-            </div>
 
             {/* Navigation Items - Flex-1 for vertical centering */}
             <div className="flex-1 flex flex-col gap-2 p-2 pt-6">
@@ -108,13 +104,29 @@ export function MainNavigation({ activeRoute = '/pos', onNavigate }: MainNavigat
                 })}
             </div>
 
-            {/* User Profile Section - Bottom */}
-            <div className="p-3 border-t border-[rgba(255,255,255,0.1)]">
-                <div className="flex items-center justify-center w-14 h-14 rounded-xl bg-[rgba(255,255,255,0.05)] border border-[rgba(255,255,255,0.05)] hover:bg-[rgba(255,255,255,0.1)] transition-colors cursor-pointer group">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-sm font-bold text-white shadow-lg">
-                        KM
-                    </div>
-                </div>
+            {/* Bottom Actions: User/Shift & Lock */}
+            <div className="p-3 border-t border-[rgba(255,255,255,0.1)] space-y-2">
+                {/* User/Shift Button */}
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onShift}
+                    className="w-full h-14 rounded-xl bg-gradient-to-br from-purple-500/20 to-pink-500/20 border border-purple-400/30 hover:border-purple-400/50 flex items-center justify-center transition-all"
+                    title="إدارة الوردية"
+                >
+                    <User className="w-6 h-6 text-purple-400" />
+                </motion.button>
+
+                {/* Lock Screen Button */}
+                <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={onLock}
+                    className="w-full h-14 rounded-xl bg-gradient-to-br from-red-500/20 to-red-600/20 border border-red-400/30 hover:border-red-400/50 flex items-center justify-center transition-all"
+                    title="قفل الشاشة"
+                >
+                    <Lock className="w-6 h-6 text-red-400" />
+                </motion.button>
             </div>
         </nav>
     );

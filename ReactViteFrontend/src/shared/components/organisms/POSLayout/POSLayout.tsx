@@ -69,12 +69,22 @@ export function POSLayout({
                 className
             )}
         >
-            {/* Cart Panel - Fixed Left, z-40 */}
+            {/* Cart Panel - Fixed Left, z-40, w-96 (384px) */}
             <AnimatePresence mode="wait">
                 {isCartOpen && (
-                    <div className="z-40">
+                    <motion.div
+                        initial={{ x: -384 }}
+                        animate={{ x: 0 }}
+                        exit={{ x: -384 }}
+                        transition={{
+                            type: 'spring',
+                            damping: 30,
+                            stiffness: 300
+                        }}
+                        className="fixed left-0 top-0 h-screen w-96 z-40"
+                    >
                         {cartPanel}
-                    </div>
+                    </motion.div>
                 )}
             </AnimatePresence>
 
