@@ -1,13 +1,10 @@
-import { useState, useRef } from 'react';
-import { useReactToPrint } from 'react-to-print';
+import { useState } from 'react';
 import { POSLayout } from '@/shared/components/organisms/POSLayout';
 import { MainNavigation } from '@/shared/components/organisms/MainNavigation';
 import { ProductBrowser } from '@/shared/components/organisms/ProductBrowser';
 import { CartPanel } from '@/shared/components/organisms/CartPanel';
 import { POSBottomBar } from '@/shared/components/organisms/POSBottomBar';
 import { ProductDetailsModal } from '@/modules/menu/components/ProductDetailsModal/ProductDetailsModal';
-import { KitchenTicket } from '@/modules/sales/components/KitchenTicket/KitchenTicket';
-import { KitchenPreviewModal } from '@/modules/sales/components/KitchenPreviewModal/KitchenPreviewModal';
 import { PaymentModal } from '@/modules/sales/components/PaymentModal/PaymentModal';
 import { OrderTypeModal } from '@/modules/sales/components/OrderTypeModal/OrderTypeModal';
 import { OrdersHistoryModal } from '@/modules/sales/components/OrdersHistory/OrdersHistoryModal';
@@ -17,7 +14,12 @@ import { ScreenLockModal } from '@/modules/auth/components/ScreenLockModal';
 import { useCartStore } from '@/modules/sales/store/cartStore';
 import { useShiftStore } from '@/modules/shifts/store/shiftStore';
 import { useScreenLockStore } from '@/modules/auth/store/screenLockStore';
+import { useHeldOrdersStore } from '@/modules/sales/store/heldOrdersStore';
+import toast from 'react-hot-toast';
+import { HeldOrdersModal } from '@/modules/sales/components/HeldOrdersModal/HeldOrdersModal';
+import { PrintPreviewModal } from '@/shared/components/modals/PrintPreviewModal/PrintPreviewModal';
 import type { Product } from '@/modules/products/types/product.types';
+import type { CartItem } from '@/modules/sales/store/cartStore';
 
 /**
  * POSPage - Main POS Controller (PHASE 5: Complete with Table Selection)
@@ -35,16 +37,21 @@ import type { Product } from '@/modules/products/types/product.types';
  * - Table selection → Updates cart orderType to DINE_IN
  */
 export default function POSPage() {
-    const { addItem, items, clearCart, getTotals, sendToKitchen, orderType, setOrderType } = useCartStore();
+    const { addItem, items, clearCart, getTotals, sendToKitchen, orderType } = useCartStore();
     const { isShiftOpen } = useShiftStore();
     const { isLocked, lock } = useScreenLockStore();
+    const { holdOrder, heldOrders } = useHeldOrdersStore();
     const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
     const [showOrderTypeModal, setShowOrderTypeModal] = useState(false);
+    const [showHeldOrders, setShowHeldOrders] = useState(false); // PHASE 4: Held Orders Manager
     const [showShiftControl, setShowShiftControl] = useState(false);
-    const [showKitchenPreview, setShowKitchenPreview] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
     const [showOrdersHistory, setShowOrdersHistory] = useState(false);
-    const kitchenTicketRef = useRef<HTMLDivElement>(null);
+    // PHASE 4: Print Preview Modal State
+    const [showPrintPreview, setShowPrintPreview] = useState(false);
+    const [printPreviewData, setPrintPreviewData] = useState<CartItem[]>([]);
+    const [printPreviewType, setPrintPreviewType] = useState<'KITCHEN_ORDER' | 'KITCHEN_VOID'>('KITCHEN_ORDER');
+    const [printPreviewMetadata, setPrintPreviewMetadata] = useState<any>({});
 
     // Handler: Smart Modifiers Logic
     const handleProductClick = (product: Product) => {
@@ -83,20 +90,15 @@ export default function POSPage() {
         setSelectedProduct(null);
     };
 
-    // Handler: Kitchen Print
-    const handlePrintKitchen = useReactToPrint({
-        contentRef: kitchenTicketRef,
-    });
-
     const handleKitchen = () => {
         // SHIFT GUARD
         if (!isShiftOpen) {
-            alert('⚠️ Please open a shift first!');
+            toast.error('⚠️ Please open a shift first!');
             return;
         }
 
         if (items.length === 0) {
-            alert('السلة فارغة');
+            toast.error('❌ السلة فارغة / Cart is empty');
             return;
         }
 
@@ -104,32 +106,27 @@ export default function POSPage() {
         const newItems = items.filter(item => item.status === 'NEW');
 
         if (newItems.length === 0) {
-            alert('ℹ️ No new items to send! All items already sent to kitchen.');
+            toast.error('ℹ️ No new items to send! All items already sent to kitchen.');
             return;
         }
 
-        // Send to kitchen (delta print - only NEW items marked as SENT)
-        const sentItems = sendToKitchen('Table Order');
-
-        console.log(`✅ Sent ${sentItems.length} items to kitchen (delta print)`);
-
-        // Show kitchen preview briefly
-        setShowKitchenPreview(true);
-        setTimeout(() => setShowKitchenPreview(false), 2000);
-
-        // Trigger print
-        setTimeout(() => handlePrintKitchen(), 300);
+        // ✅ PHASE 4: Open Print Preview Modal instead of direct print
+        setPrintPreviewData(newItems);
+        setPrintPreviewType('KITCHEN_ORDER');
+        setPrintPreviewMetadata({ tableName: 'Table Order' });
+        setShowPrintPreview(true);
     };
 
-    // Handler: Confirm Kitchen Print (from KitchenPreviewModal)
-    const handleConfirmKitchenPrint = (referenceNote: string) => {
-        // Trigger print
-        if (handlePrintKitchen) {
-            handlePrintKitchen();
-        }
+    // Handler: Confirm Print (from PrintPreviewModal)
+    const handleConfirmPrint = () => {
+        // Send to kitchen (marks items as SENT)
+        const sentItems = sendToKitchen('Table Order');
 
-        console.log('Kitchen ticket printed for:', referenceNote);
-        setShowKitchenPreview(false);
+        // Close modal
+        setShowPrintPreview(false);
+
+        // User feedback
+        toast.success(`👨‍🍳 Sent ${sentItems.length} item(s) to kitchen`, { duration: 3000 });
     };
 
     // Handler: Navigation
@@ -137,6 +134,8 @@ export default function POSPage() {
         console.log('Navigate to:', route);
         // TODO: Implement routing
     };
+
+
 
     // Handler: Payment (with shift validation)
     const handlePay = () => {
@@ -174,15 +173,60 @@ export default function POSPage() {
         // TODO: Implement receipt print
     };
 
-    // Handler: Hold
+    // Handler: Hold Order (PHASE 4: Smart Context Preservation)
     const handleHold = () => {
         if (items.length === 0) {
-            alert('السلة فارغة');
+            toast.error('❌ السلة فارغة / Cart is empty');
             return;
         }
 
-        console.log('Hold order');
-        // TODO: Implement hold order
+        let customerName: string | null = null;
+        let tableName: string | null = null;
+        let tableId: string | null = null;
+
+        // Smart Hold Logic based on Order Type
+        if (orderType === 'DINE_IN') {
+            // Table Hold: Prompt for table name (or use existing if available)
+            tableName = window.prompt('📋 Table Hold\n\nEnter table number/name:');
+            if (!tableName) {
+                toast.error('❌ Table name required for Dine-In hold');
+                return;
+            }
+            tableId = `table-${tableName.toLowerCase().replace(/\s/g, '-')}`;
+        } else {
+            // Parking Hold: Optional customer name for reference
+            customerName = window.prompt('👤 Parking Order\n\nOptional: Enter customer name for reference:') || 'Walk-in';
+        }
+
+        // Hold the order with context
+        const holdId = holdOrder(
+            items,
+            orderType,
+            tableId || undefined,
+            tableName || undefined,
+            customerName || undefined,
+            undefined // optional note
+        );
+
+        // Clear cart after successful hold
+        clearCart();
+
+        // User Feedback
+        if (orderType === 'DINE_IN' && tableName) {
+            toast.success(`🍽️ Table ${tableName} order held successfully`);
+        } else {
+            toast.success(`📦 Order parked${customerName ? ` for ${customerName}` : ''} successfully`);
+        }
+
+        console.log(`✅ [POSPage] Order held:`, {
+            holdId,
+            orderType,
+            itemCount: items.length,
+            sentItems: items.filter(i => i.status === 'SENT').length,
+            tableId,
+            tableName,
+            customerName,
+        });
     };
 
     // Handler: Refund
@@ -191,23 +235,10 @@ export default function POSPage() {
         // TODO: Implement refund
     };
 
-    // Handler: Order Type Selection (Takeaway or Dine-In)
-    const handleOrderType = () => {
+    // Handler: Order Type Selection (PHASE 4: Opens Modal)
+    const handleOrderTypeClick = () => {
         setShowOrderTypeModal(true);
-    };
-
-    // Handler: Cycle Order Type (TAKEAWAY → DINE_IN → DELIVERY)
-    const handleCycleOrderType = () => {
-        if (orderType === 'TAKEAWAY') {
-            setOrderType('DINE_IN');
-        } else if (orderType === 'DINE_IN') {
-            setOrderType('DELIVERY');
-        } else if (orderType === 'DELIVERY') {
-            setOrderType('DELIVERY_UBEREATS');
-        } else {
-            setOrderType('TAKEAWAY');
-        }
-        console.log(`🔄 Order type cycled to: ${orderType}`);
+        console.log('📋 Opening Order Type Selection Modal');
     };
 
     // Handler: Orders History
@@ -219,6 +250,11 @@ export default function POSPage() {
     const handleShiftControl = () => {
         setShowShiftControl(true);
         console.log('Opening shift control');
+    };
+
+    // Handler: Held Orders (PHASE 4: View/Resume held orders)
+    const handleHeldOrders = () => {
+        setShowHeldOrders(true);
     };
 
     // Handler: Lock Screen
@@ -273,11 +309,13 @@ export default function POSPage() {
                                 onHold={handleHold}
                                 onRefund={handleRefund}
                                 onOrders={handleOrders}
-                                onCycleOrderType={handleCycleOrderType}
+                                onCycleOrderType={handleOrderTypeClick} // PHASE 4: Opens OrderTypeModal
+                                onHeldOrders={handleHeldOrders} // PHASE 4: Opens HeldOrdersModal
                                 userName="Ahmed"
                                 // Restaurant Workflow
                                 orderType={orderType}
                                 newItemsCount={items.filter(i => i.status === 'NEW').length}
+                                heldOrdersCount={heldOrders.length} // PHASE 4: Badge count
                             />
                         }
                     />
@@ -321,14 +359,24 @@ export default function POSPage() {
                         />
                     )}
 
-                    {/* Hidden Kitchen Ticket for Printing */}
-                    <div style={{ display: 'none' }}>
-                        <KitchenTicket
-                            ref={kitchenTicketRef}
-                            items={items}
-                            referenceNote="COUNTER ORDER"
+                    {/* HeldOrdersModal (PHASE 4: Conditional) */}
+                    {showHeldOrders && (
+                        <HeldOrdersModal
+                            onClose={() => setShowHeldOrders(false)}
                         />
-                    </div>
+                    )}
+
+                    {/* PrintPreviewModal (PHASE 4: Conditional) */}
+                    {showPrintPreview && (
+                        <PrintPreviewModal
+                            isOpen={showPrintPreview}
+                            type={printPreviewType}
+                            data={printPreviewData}
+                            metadata={printPreviewMetadata}
+                            onConfirm={handleConfirmPrint}
+                            onCancel={() => setShowPrintPreview(false)}
+                        />
+                    )}
                 </>
             )}
 

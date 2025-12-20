@@ -5,10 +5,19 @@ export interface KitchenTicketProps {
   referenceNote?: string;
   items: CartItem[];
   orderTime?: Date;
+  // PHASE 4: VOID Ticket Support
+  ticketType?: 'ORDER' | 'VOID'; // Default: 'ORDER'
+  voidReason?: string; // For VOID tickets
+  voidAuthorizer?: string; // Manager who authorized void
 }
 
 export const KitchenTicket = React.forwardRef<HTMLDivElement, KitchenTicketProps>(
-  ({ referenceNote, items, orderTime = new Date() }, ref) => {
+  ({ referenceNote, items, orderTime = new Date(), ticketType = 'ORDER', voidReason, voidAuthorizer }, ref) => {
+    // PHASE 4: Filter items based on ticket type
+    const displayItems = ticketType === 'VOID'
+      ? items.filter(item => item.status === 'VOIDED')
+      : items;
+
     return (
       <div ref={ref} className="kitchen-ticket">
         {/* Inline Styles for Thermal Printing */}
@@ -31,12 +40,34 @@ export const KitchenTicket = React.forwardRef<HTMLDivElement, KitchenTicketProps
             background: white;
             color: black;
           }
+
+          /* PHASE 4: VOID Ticket Specific Styling */
+          .kitchen-ticket.void-ticket {
+            border: 4px solid #ff0000;
+          }
           
           .kitchen-ticket-header {
             text-align: center;
             margin-bottom: 8mm;
             border-bottom: 2px dashed #000;
             padding-bottom: 5mm;
+          }
+
+          /* PHASE 4: VOID header styling */
+          .kitchen-ticket-header.void-header {
+            background: #ff0000;
+            padding: 5mm;
+            margin: -10mm -10mm 8mm -10mm;
+            border-bottom: 4px solid #000;
+          }
+
+          .kitchen-ticket-header.void-header .void-title {
+            font-size: 28px;
+            font-weight: bold;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0;
           }
           
           .kitchen-ticket-reference {
@@ -104,7 +135,10 @@ export const KitchenTicket = React.forwardRef<HTMLDivElement, KitchenTicketProps
         `}</style>
 
         {/* HEADER */}
-        <div className="kitchen-ticket-header">
+        <div className={`kitchen-ticket-header ${ticketType === 'VOID' ? 'void-header' : ''}`}>
+          {ticketType === 'VOID' && (
+            <div className="void-title">⛔ VOID TICKET ⛔</div>
+          )}
           <div className="kitchen-ticket-reference">
             {referenceNote || 'COUNTER ORDER'}
           </div>
@@ -119,7 +153,7 @@ export const KitchenTicket = React.forwardRef<HTMLDivElement, KitchenTicketProps
         </div>
 
         {/* ITEMS */}
-        {items.map((item, index) => (
+        {displayItems.map((item, index) => (
           <div key={index} className="kitchen-ticket-item">
             <div>
               <span className="kitchen-ticket-quantity">
@@ -152,8 +186,14 @@ export const KitchenTicket = React.forwardRef<HTMLDivElement, KitchenTicketProps
 
         {/* FOOTER */}
         <div className="kitchen-ticket-footer">
-          <div>*** KITCHEN COPY ***</div>
+          <div>*** {ticketType === 'VOID' ? 'VOID TICKET' : 'KITCHEN COPY'} ***</div>
           <div>{new Date().toLocaleDateString()}</div>
+          {ticketType === 'VOID' && voidReason && (
+            <div style={{ marginTop: '5mm', fontWeight: 'bold', borderTop: '2px solid #000', paddingTop: '5mm' }}>
+              <div>REASON: {voidReason}</div>
+              {voidAuthorizer && <div>AUTHORIZED BY: {voidAuthorizer}</div>}
+            </div>
+          )}
         </div>
       </div>
     );

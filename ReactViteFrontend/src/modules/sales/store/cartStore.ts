@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { devtools } from 'zustand/middleware';
 import Decimal from 'decimal.js';
 import type { Product } from '@/modules/products/types/product.types';
-import type { OrderType } from '../types/order.types';
+import type { OrderType } from '../types/order.types'; // Type union, not enum
 import { DecimalUtil } from '@/core/utils/decimal.utils';
 
 /**
@@ -74,7 +74,7 @@ interface CartStore {
 
     // RESTAURANT WORKFLOW ACTIONS (NEW)
     sendToKitchen: (referenceNote?: string) => CartItem[]; // Returns items sent
-    voidItem: (itemId: string, reason?: string) => void; // Void sent items
+    voidItem: (itemId: string, reason: string, authorizer?: { id: string; fullName: string }) => void; // ✅ ENHANCED: Requires authorizer
 
     // Computed
     getTotals: () => {
@@ -155,7 +155,7 @@ export const useCartStore = create<CartStore>()(
                     });
 
                     set({ items });
-                    console.log('✅ [CartStore] Increased quantity for existing item');
+                    // User feedback handled by UI component (quantity badge update)
                 } else {
                     // New item: Add to cart
                     // Calculate modifiers total using DecimalUtil
@@ -200,7 +200,7 @@ export const useCartStore = create<CartStore>()(
                         items: [...state.items, newItem],
                         logs: [...get().logs, log],
                     });
-                    console.log('✅ [CartStore] Added new item to cart');
+                    // User feedback handled by UI component (cart badge/animation)
                 }
             },
 
@@ -240,18 +240,20 @@ export const useCartStore = create<CartStore>()(
                 });
             },
 
-            // Set order type (ENHANCED with fee calculation)
+            // Set order type (ENHANCED with auto-apply service charge)
             setOrderType: (type) => {
                 const state = get();
                 let serviceCharge = '0.000';
 
-                // Calculate service charge for DINE_IN (15%)
-                if (type === 'DINE_IN') {
+                // ✅ NEW RULE: Service charge auto-applied to ALL types EXCEPT TAKEAWAY
+                if (type !== 'TAKEAWAY') {
                     const subtotal = state.items.reduce((sum, item) => {
+                        // Exclude voided items from service charge calculation
+                        if (item.status === 'VOIDED') return sum;
                         return DecimalUtil.add(sum.toFixed(3), item.lineTotal);
                     }, new Decimal(0));
 
-                    // 15% service charge
+                    // 15% service charge for all non-takeaway orders
                     serviceCharge = DecimalUtil.multiply(subtotal.toFixed(3), '0.15').toFixed(3);
                 }
 
@@ -272,7 +274,14 @@ export const useCartStore = create<CartStore>()(
                     logs: [...state.logs, log],
                 });
 
-                console.log(`✅ [CartStore] Order type changed to ${type}, service charge: ${serviceCharge}`);
+                // ✅ TOAST FEEDBACK: User-facing notification (async import to avoid bundle bloat)
+                import('react-hot-toast').then(({ default: toast }) => {
+                    if (type === 'TAKEAWAY') {
+                        toast.success('📦 Takeaway - No service charge', { duration: 2000 });
+                    } else {
+                        toast.success(`💰 Service charge applied (15%)`, { duration: 2000 });
+                    }
+                });
             },
 
             // Set table
@@ -307,7 +316,9 @@ export const useCartStore = create<CartStore>()(
                 const newItems = state.items.filter(item => item.status === 'NEW');
 
                 if (newItems.length === 0) {
-                    console.warn('⚠️ [CartStore] No new items to send to kitchen');
+                    import('react-hot-toast').then(({ default: toast }) => {
+                        toast.error('⚠️ No new items to send to kitchen', { duration: 2500 });
+                    });
                     return [];
                 }
 
@@ -340,73 +351,83 @@ export const useCartStore = create<CartStore>()(
                     logs: [...state.logs, log],
                 });
 
-                console.log(`✅ [CartStore] Sent ${newItems.length} items to kitchen${referenceNote ? ` (${referenceNote})` : ''}`);
+                import('react-hot-toast').then(({ default: toast }) => {
+                    toast.success(`🍳 Sent ${newItems.length} item(s) to kitchen${referenceNote ? ` - ${referenceNote}` : ''}`, { duration: 3000 });
+                });
                 return newItems;
             },
 
-            // Void item (Manager auth required for SENT items)
-            voidItem: (itemId, reason = 'OTHER') => {
+            // ============================================
+            // RESTAURANT WORKFLOW: Void Item (SENT ONLY + AUTHORIZER)
+            // ============================================
+            voidItem: (itemId, reason, authorizer) => {
                 const state = get();
                 const item = state.items.find(i => i.id === itemId);
 
                 if (!item) {
-                    console.error('❌ [CartStore] Item not found:', itemId);
+                    import('react-hot-toast').then(({ default: toast }) => {
+                        toast.error('❌ Item not found');
+                    });
                     return;
                 }
 
-                // LOGIC: If NEW, just remove it (not sent yet)
+                // ✅ SECURITY GUARD: Only SENT items can be voided
                 if (item.status === 'NEW') {
-                    const log = {
-                        id: `log-${Date.now()}`,
-                        timestamp: new Date().toISOString(),
-                        action: 'REMOVE_ITEM',
-                        itemId,
-                        details: {
-                            productName: item.product.name,
-                        },
-                    };
+                    throw new Error(
+                        'SOP Violation: NEW items should be removed, not voided. ' +
+                        'Use removeItem() for items not yet sent to kitchen.'
+                    );
+                }
 
-                    set({
-                        items: state.items.filter(i => i.id !== itemId),
-                        logs: [...state.logs, log],
+                if (item.status === 'VOIDED') {
+                    import('react-hot-toast').then(({ default: toast }) => {
+                        toast.error(`⚠️ Item already voided: ${item.product.name}`, { duration: 2500 });
                     });
-                    console.log('✅ [CartStore] Removed NEW item directly');
                     return;
                 }
 
-                // LOGIC: If SENT, mark as VOIDED (don't delete)
-                if (item.status === 'SENT') {
-                    const updatedItems = state.items.map(i => {
-                        if (i.id === itemId) {
-                            return {
-                                ...i,
-                                status: 'VOIDED' as const,
-                                voidedAt: new Date().toISOString(),
-                                voidReason: reason,
-                            };
-                        }
-                        return i;
-                    });
+                // Update status to VOIDED (keep in cart for audit trail)
+                const updatedItems = state.items.map(i => {
+                    if (i.id === itemId) {
+                        return {
+                            ...i,
+                            status: 'VOIDED' as const,
+                            voidedAt: new Date().toISOString(),
+                            voidReason: reason,
+                        };
+                    }
+                    return i;
+                });
 
-                    // LOG ACTION
-                    const log = {
-                        id: `log-${Date.now()}`,
-                        timestamp: new Date().toISOString(),
-                        action: 'VOID_ITEM',
-                        itemId,
-                        details: {
-                            productName: item.product.name,
-                            reason,
+                // ✅ AUDIT LOG: Record authorizer details (SOP Compliance)
+                const log = {
+                    id: `log-${Date.now()}`,
+                    timestamp: new Date().toISOString(),
+                    action: 'VOID_SENT_ITEM', // High-security action
+                    itemId,
+                    details: {
+                        productName: item.product.name,
+                        quantity: item.quantity,
+                        reason,
+                        previousStatus: item.status,
+                        voidedBy: authorizer ? {
+                            userId: authorizer.id,
+                            userName: authorizer.fullName,
+                        } : {
+                            userId: 'UNKNOWN',
+                            userName: 'UNAUTHORIZED_VOID', // Should never happen
                         },
-                    };
+                    },
+                };
 
-                    set({
-                        items: updatedItems,
-                        logs: [...state.logs, log],
-                    });
+                set({
+                    items: updatedItems,
+                    logs: [...state.logs, log],
+                });
 
-                    console.log(`✅ [CartStore] Voided SENT item: ${item.product.name} (${reason})`);
-                }
+                import('react-hot-toast').then(({ default: toast }) => {
+                    toast.success(`⛔ Voided: ${item.product.name}`, { duration: 3000 });
+                });
             },
 
             // Get totals (CRITICAL: Uses DecimalUtil for precision)

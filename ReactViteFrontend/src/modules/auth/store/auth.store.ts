@@ -1,38 +1,83 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
+import {
+    type User,
+    UserRole,
+    Permission,
+    ROLE_PERMISSIONS,
+    hasPermission,
+    type AuthorizationRequest,
+    type AuthorizationResult,
+} from '../types/auth.types';
 
 /**
- * User Interface (from SYSTEM.users in nerdjson.md)
+ * ============================================
+ * RESTAURANT POS - AUTH STORE (REFACTORED)
+ * ============================================
+ * Phase 1: Core Security Foundation
+ * Manager PIN Authentication System
  */
-export interface User {
-    id: string;
-    username: string;
-    email: string;
-    fullName: string;
-    roleId: string;
-    role?: {
-        id: string;
-        name: string;
-        permissions: string[]; // JSON array of permission strings
-    };
-    isActive: boolean;
-    pinCode?: string;
-    lastLogin?: string; // ISO 8601
-}
+
+// ============================================
+// MOCK USERS (Testing Only)
+// ============================================
 
 /**
- * Auth Store Interface
- * Manages authentication state and user session
+ * Mock Users for Development/Testing
+ * 
+ * ⚠️ PRODUCTION: Replace with API calls to backend
+ */
+const MOCK_USERS: User[] = [
+    {
+        id: 'user-001',
+        username: 'cashier1',
+        fullName: 'Sarah Ahmed',
+        email: 'sarah@nerdpos.com',
+        role: UserRole.CASHIER,
+        pinCode: '1111',        // 🔴 NEVER store in plaintext in production
+        isActive: true,
+    },
+    {
+        id: 'user-002',
+        username: 'manager1',
+        fullName: 'Mohammed Ali',
+        email: 'mohammed@nerdpos.com',
+        role: UserRole.SHIFT_MANAGER,
+        pinCode: '2222',
+        isActive: true,
+    },
+    {
+        id: 'user-003',
+        username: 'owner',
+        fullName: 'Owner (GM)',
+        email: 'owner@nerdpos.com',
+        role: UserRole.GM,
+        pinCode: '9999',
+        isActive: true,
+    },
+];
+
+// ============================================
+// AUTH STORE INTERFACE
+// ============================================
+
+/**
+ * Auth Store State & Actions
+ * 
+ * Security Model:
+ * - activeUser: The cashier currently operating the POS
+ * - temporaryAuthorizer: Manager who entered PIN for a specific action
  */
 interface AuthStore {
     // State
-    user: User | null;
+    activeUser: User | null;                // Current cashier logged in
+    temporaryAuthorizer: User | null;       // Manager override for single action
     accessToken: string | null;
     refreshToken: string | null;
     isAuthenticated: boolean;
     isLoading: boolean;
 
-    // Actions
+    // Core Auth Actions
     login: (username: string, password: string) => Promise<void>;
     loginWithPin: (pinCode: string) => Promise<void>;
     logout: () => void;
@@ -40,73 +85,76 @@ interface AuthStore {
     setUser: (user: User) => void;
     setTokens: (accessToken: string, refreshToken: string) => void;
 
-    // Permission checks
-    hasPermission: (permission: string) => boolean;
+    // ✅ NEW: Manager PIN Validation (SOP Compliance)
+    validatePin: (pin: string, requiredPermission: Permission) => Promise<AuthorizationResult>;
+    requestAuthorization: (request: AuthorizationRequest) => Promise<AuthorizationResult>;
+    clearAuthorizer: () => void;
+
+    // Permission Checks
+    hasPermission: (permission: Permission) => boolean;
     hasRole: (roleName: string) => boolean;
+    canAuthorize: (permission: Permission) => boolean; // Check if temporaryAuthorizer has permission
 }
+
+// ============================================
+// AUTH STORE IMPLEMENTATION
+// ============================================
 
 /**
  * Auth Store
- * Handles user authentication and authorization
- * Persists tokens to localStorage
+ * Handles user authentication, authorization, and manager PIN validation
+ * 
+ * Security Features:
+ * - Dual-user system (active + authorizer)
+ * - Permission-based access control
+ * - Manager PIN validation
+ * - Audit trail hooks
  */
 export const useAuthStore = create<AuthStore>()(
     devtools(
         persist(
             (set, get) => ({
-                // Initial state
-                user: null,
+                // ============================================
+                // INITIAL STATE
+                // ============================================
+
+                activeUser: null,
+                temporaryAuthorizer: null,
                 accessToken: null,
                 refreshToken: null,
                 isAuthenticated: false,
                 isLoading: false,
+
+                // ============================================
+                // CORE AUTH ACTIONS
+                // ============================================
 
                 // Login with username/password
                 login: async (username, password) => {
                     set({ isLoading: true });
 
                     try {
-                        // Mock implementation
-                        // In production, call AuthService.login(username, password)
-
-                        // Simulate API call
+                        // 🔴 PRODUCTION: Replace with actual API call
                         await new Promise(resolve => setTimeout(resolve, 500));
 
-                        // Mock user data
-                        const mockUser: User = {
-                            id: 'user-001',
-                            username,
-                            email: `${username}@nerdpos.com`,
-                            fullName: 'Ahmed Mohammed',
-                            roleId: 'role-001',
-                            role: {
-                                id: 'role-001',
-                                name: 'Cashier',
-                                permissions: [
-                                    'pos:create',
-                                    'pos:read',
-                                    'pos:update',
-                                    'orders:read',
-                                    'products:read',
-                                    'customers:read',
-                                ],
-                            },
-                            isActive: true,
-                            lastLogin: new Date().toISOString(),
-                        };
+                        // Mock user lookup
+                        const mockUser = MOCK_USERS.find(u => u.username === username);
+
+                        if (!mockUser) {
+                            throw new Error('User not found');
+                        }
 
                         const mockAccessToken = 'mock-access-token-' + Date.now();
                         const mockRefreshToken = 'mock-refresh-token-' + Date.now();
 
                         set({
-                            user: mockUser,
+                            activeUser: { ...mockUser, lastLogin: new Date().toISOString() },
                             accessToken: mockAccessToken,
                             refreshToken: mockRefreshToken,
                             isAuthenticated: true,
                             isLoading: false,
                         });
 
-                        // Persist to localStorage
                         localStorage.setItem('access_token', mockAccessToken);
                         localStorage.setItem('refresh_token', mockRefreshToken);
                     } catch (error) {
@@ -115,33 +163,26 @@ export const useAuthStore = create<AuthStore>()(
                     }
                 },
 
-                // Login with PIN code (quick switch)
+                // Login with PIN code (quick user switch)
                 loginWithPin: async (pinCode) => {
                     set({ isLoading: true });
 
                     try {
-                        // Mock implementation
                         await new Promise(resolve => setTimeout(resolve, 300));
 
                         // Mock user lookup by PIN
-                        const mockUser: User = {
-                            id: 'user-002',
-                            username: 'cashier2',
-                            email: 'cashier2@nerdpos.com',
-                            fullName: 'Fatima Ali',
-                            roleId: 'role-001',
-                            role: {
-                                id: 'role-001',
-                                name: 'Cashier',
-                                permissions: ['pos:create', 'pos:read', 'orders:read'],
-                            },
-                            isActive: true,
-                            pinCode,
-                            lastLogin: new Date().toISOString(),
-                        };
+                        const mockUser = MOCK_USERS.find(u => u.pinCode === pinCode);
+
+                        if (!mockUser) {
+                            throw new Error('Invalid PIN');
+                        }
+
+                        if (!mockUser.isActive) {
+                            throw new Error('User is not active');
+                        }
 
                         set({
-                            user: mockUser,
+                            activeUser: { ...mockUser, lastLogin: new Date().toISOString() },
                             isAuthenticated: true,
                             isLoading: false,
                         });
@@ -153,13 +194,12 @@ export const useAuthStore = create<AuthStore>()(
 
                 // Logout
                 logout: () => {
-                    // Clear localStorage
                     localStorage.removeItem('access_token');
                     localStorage.removeItem('refresh_token');
 
-                    // Clear state
                     set({
-                        user: null,
+                        activeUser: null,
+                        temporaryAuthorizer: null,
                         accessToken: null,
                         refreshToken: null,
                         isAuthenticated: false,
@@ -174,13 +214,10 @@ export const useAuthStore = create<AuthStore>()(
                     }
 
                     try {
-                        // Mock implementation
                         const newAccessToken = 'mock-access-token-refreshed-' + Date.now();
-
                         set({ accessToken: newAccessToken });
                         localStorage.setItem('access_token', newAccessToken);
                     } catch (error) {
-                        // If refresh fails, logout
                         get().logout();
                         throw error;
                     }
@@ -188,7 +225,7 @@ export const useAuthStore = create<AuthStore>()(
 
                 // Set user manually
                 setUser: (user) => {
-                    set({ user, isAuthenticated: true });
+                    set({ activeUser: user, isAuthenticated: true });
                 },
 
                 // Set tokens manually
@@ -198,23 +235,149 @@ export const useAuthStore = create<AuthStore>()(
                     localStorage.setItem('refresh_token', refreshToken);
                 },
 
-                // Check if user has specific permission
-                hasPermission: (permission) => {
-                    const { user } = get();
-                    if (!user || !user.role) return false;
-                    return user.role.permissions.includes(permission);
+                // ============================================
+                // ✅ NEW: MANAGER PIN VALIDATION (SOP)
+                // ============================================
+
+                /**
+                 * Validate PIN and check permission
+                 * 
+                 * SOP Compliance:
+                 * - Finds user by PIN
+                 * - Checks if user has required permission
+                 * - Sets temporaryAuthorizer if valid
+                 * - Returns authorization result
+                 * 
+                 * @param pin - 4-digit PIN code
+                 * @param requiredPermission - Permission required for action
+                 * @returns Authorization result with success flag
+                 */
+                validatePin: async (pin, requiredPermission) => {
+                    try {
+                        // Simulate API delay
+                        await new Promise(resolve => setTimeout(resolve, 300));
+
+                        // Find user by PIN
+                        const user = MOCK_USERS.find(u => u.pinCode === pin);
+
+                        if (!user) {
+                            return {
+                                success: false,
+                                error: 'Invalid PIN code',
+                            };
+                        }
+
+                        if (!user.isActive) {
+                            return {
+                                success: false,
+                                error: 'User account is inactive',
+                            };
+                        }
+
+                        // Check if user has required permission
+                        const userPermissions = ROLE_PERMISSIONS[user.role];
+                        const hasRequiredPermission = userPermissions.includes(requiredPermission);
+
+                        if (!hasRequiredPermission) {
+                            return {
+                                success: false,
+                                error: `Insufficient permissions. ${user.role} role cannot authorize this action.`,
+                            };
+                        }
+
+                        // Authorization successful - set temporary authorizer
+                        set({ temporaryAuthorizer: user });
+
+                        return {
+                            success: true,
+                            authorizer: user,
+                        };
+                    } catch (error) {
+                        return {
+                            success: false,
+                            error: 'Failed to validate PIN',
+                        };
+                    }
                 },
 
-                // Check if user has specific role
+                /**
+                 * Request authorization for an action
+                 * 
+                 * This is a wrapper around validatePin with context
+                 * 
+                 * @param request - Authorization request with action and permission
+                 * @returns Authorization result
+                 */
+                requestAuthorization: async (request) => {
+                    // This method is async to allow for future modal integration
+                    // For now, it just validates permissions
+                    const { activeUser } = get();
+
+                    if (!activeUser) {
+                        return {
+                            success: false,
+                            error: 'No user logged in',
+                        };
+                    }
+
+                    // Check if active user already has permission
+                    if (hasPermission(activeUser, request.permission)) {
+                        return {
+                            success: true,
+                            authorizer: activeUser,
+                        };
+                    }
+
+                    // Otherwise, require manager PIN (will be handled by modal)
+                    return {
+                        success: false,
+                        error: 'Manager authorization required',
+                    };
+                },
+
+                /**
+                 * Clear temporary authorizer
+                 * 
+                 * SOP: Authorizer is only valid for a single action
+                 * Must be cleared after authorization is used
+                 */
+                clearAuthorizer: () => {
+                    set({ temporaryAuthorizer: null });
+                },
+
+                // ============================================
+                // PERMISSION CHECKS
+                // ============================================
+
+                /**
+                 * Check if active user has a specific permission
+                 */
+                hasPermission: (permission) => {
+                    const { activeUser } = get();
+                    return hasPermission(activeUser, permission);
+                },
+
+                /**
+                 * Check if active user has a specific role
+                 * @deprecated Use hasPermission instead for better security
+                 */
                 hasRole: (roleName) => {
-                    const { user } = get();
-                    if (!user || !user.role) return false;
-                    return user.role.name === roleName;
+                    const { activeUser } = get();
+                    if (!activeUser) return false;
+                    return activeUser.role === roleName;
+                },
+
+                /**
+                 * Check if temporary authorizer can authorize a permission
+                 */
+                canAuthorize: (permission) => {
+                    const { temporaryAuthorizer } = get();
+                    return hasPermission(temporaryAuthorizer, permission);
                 },
             }),
             {
                 name: 'auth-storage',
-                // Only persist tokens, not the full user object
+                // Only persist tokens, not user objects (for security)
                 partialize: (state) => ({
                     accessToken: state.accessToken,
                     refreshToken: state.refreshToken,
@@ -224,3 +387,22 @@ export const useAuthStore = create<AuthStore>()(
         { name: 'auth-store' }
     )
 );
+
+// ============================================
+// CONVENIENCE EXPORTS
+// ============================================
+
+/**
+ * Get current user (for external use)
+ */
+export const getCurrentUser = () => useAuthStore.getState().activeUser;
+
+/**
+ * Get current authorizer (for external use)
+ */
+export const getCurrentAuthorizer = () => useAuthStore.getState().temporaryAuthorizer;
+
+/**
+ * Export mock users for testing
+ */
+export { MOCK_USERS };

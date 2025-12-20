@@ -1,4 +1,4 @@
-import { ShoppingCart, Printer, ChefHat, Pause, RotateCcw, User, Utensils, ClipboardList } from 'lucide-react';
+import { ShoppingCart, Printer, ChefHat, Pause, RotateCcw, User, Utensils, ClipboardList, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useCartStore } from '@/modules/sales/store/cartStore';
@@ -13,15 +13,18 @@ export interface POSBottomBarProps {
     onRefund?: () => void;
     onTable?: () => void;
     onOrders?: () => void;
-    onCycleOrderType?: () => void; // NEW
+    onCycleOrderType?: () => void; // PHASE 4: Changed from cycle to modal trigger
+    onHeldOrders?: () => void; // PHASE 4: View/Resume held orders
     onCartToggle?: () => void;
     isCartOpen?: boolean;
     userName?: string;
     shiftStatus?: string;
     className?: string;
-    // NEW: Restaurant workflow props
+    // PHASE 4: Enhanced workflow props
     orderType?: OrderType;
     newItemsCount?: number;
+    heldOrdersCount?: number; // PHASE 4: Badge count for held orders
+    tableInfo?: { id: string; name: string }; // For smart hold system
 }
 
 /**
@@ -42,24 +45,28 @@ export function POSBottomBar({
     onTable,
     onOrders,
     onCycleOrderType,
+    onHeldOrders, // PHASE 4: View held orders modal
     onCartToggle,
     isCartOpen = false,
     userName,
     className,
     orderType = 'TAKEAWAY',
     newItemsCount = 0,
+    heldOrdersCount = 0, // PHASE 4: Badge for held orders
 }: POSBottomBarProps) {
     const { getTotals } = useCartStore();
     const { isShiftOpen } = useShiftStore();
     const totals = getTotals();
 
-    // Order type icons
+    // PHASE 4: Expanded Order Type Icons (7 types)
     const orderTypeIcons: Record<OrderType, string> = {
         TAKEAWAY: '📦',
         DINE_IN: '🍽️',
-        DELIVERY: '🚗',
-        DELIVERY_UBEREATS: '🚚',
         DRIVE_THRU: '🚙',
+        DELIVERY_INTERNAL: '🚗', // In-house driver (Green)
+        DELIVERY_TALABAT: '🛵',  // Talabat (Orange)
+        DELIVERY_UBER: '🚚',     // UberEats (Black/White)
+        DELIVERY_JAHEZ: '🏍️',    // Jahez (Purple)
     };
 
     const hasNewItems = newItemsCount > 0;
@@ -107,9 +114,11 @@ export function POSBottomBar({
                             <span className="text-sm font-['Almarai'] leading-tight">
                                 {orderType === 'TAKEAWAY' && 'تيك أواي'}
                                 {orderType === 'DINE_IN' && 'طاولة'}
-                                {orderType === 'DELIVERY' && 'توصيل'}
-                                {orderType === 'DELIVERY_UBEREATS' && 'أوبر إيتس'}
                                 {orderType === 'DRIVE_THRU' && 'سيارة'}
+                                {orderType === 'DELIVERY_INTERNAL' && 'توصيل خاص'}
+                                {orderType === 'DELIVERY_TALABAT' && 'طلبات'}
+                                {orderType === 'DELIVERY_UBER' && 'أوبر إيتس'}
+                                {orderType === 'DELIVERY_JAHEZ' && 'جاهز'}
                             </span>
                         </div>
                     </motion.button>
@@ -184,6 +193,29 @@ export function POSBottomBar({
                         className="h-14 px-4 rounded-2xl bg-purple-500/10 hover:bg-purple-500/20 border border-purple-400/30 text-purple-400 font-bold transition-all flex items-center justify-center"
                     >
                         <Pause className="w-5 h-5" />
+                    </motion.button>
+
+                    {/* Held Orders - PHASE 4: View/Resume held orders */}
+                    <motion.button
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={onHeldOrders}
+                        className="relative h-14 px-4 rounded-2xl bg-yellow-500/10 hover:bg-yellow-500/20 border border-yellow-400/30 text-yellow-400 font-bold transition-all flex items-center justify-center"
+                        title={heldOrdersCount > 0 ? `${heldOrdersCount} held orders` : 'View held orders'}
+                    >
+                        <Clock className="w-5 h-5" />
+                        <AnimatePresence>
+                            {heldOrdersCount > 0 && (
+                                <motion.span
+                                    initial={{ scale: 0 }}
+                                    animate={{ scale: 1 }}
+                                    exit={{ scale: 0 }}
+                                    className="absolute -top-1 -right-1 w-6 h-6 rounded-full bg-yellow-500 text-gray-900 text-xs font-bold flex items-center justify-center border-2 border-gray-900"
+                                >
+                                    {heldOrdersCount}
+                                </motion.span>
+                            )}
+                        </AnimatePresence>
                     </motion.button>
 
                     {/* Print */}

@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { X, Printer, TrendingUp, DollarSign, CreditCard, FileText } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useReactToPrint } from 'react-to-print';
 import Decimal from 'decimal.js';
 import { useShiftStore } from '../store/shiftStore';
 import type { Shift } from '../types/shift.types';
@@ -24,13 +23,7 @@ export interface CloseShiftModalProps {
 export function CloseShiftModal({ shift, onClose, onShiftClosed }: CloseShiftModalProps) {
     const [countedCash, setCountedCash] = useState(shift.expectedCash);
     const [revealed, setRevealed] = useState(false); // Blind count: hide expected until revealed
-    const zReportRef = useRef<HTMLDivElement>(null);
     const { closeShift } = useShiftStore();
-
-    const handlePrint = useReactToPrint({
-        contentRef: zReportRef,
-        documentTitle: `Z-Report-${shift.id}`,
-    });
 
     // Calculate difference in real-time
     const actual = new Decimal(countedCash);
@@ -245,7 +238,7 @@ export function CloseShiftModal({ shift, onClose, onShiftClosed }: CloseShiftMod
                 {/* Footer Actions */}
                 <div className="p-6 border-t border-white/10 space-y-2 bg-slate-900/50">
                     <button
-                        onClick={handlePrint}
+                        onClick={() => alert('Print functionality will be added in future version')}
                         className="w-full h-12 rounded-xl bg-white/5 hover:bg-white/10 text-white font-['Almarai'] font-bold flex items-center justify-center gap-2 transition-all"
                     >
                         <Printer className="w-5 h-5" />
@@ -269,96 +262,6 @@ export function CloseShiftModal({ shift, onClose, onShiftClosed }: CloseShiftMod
                     )}
                 </div>
             </motion.div>
-
-            {/* Hidden Z-Report for Printing - 80mm Thermal Format */}
-            <div className="hidden">
-                <div ref={zReportRef} className="w-[320px] bg-white text-black p-4">
-                    {/* Header */}
-                    <div className="text-center border-b border-dashed border-gray-400 pb-3 mb-3">
-                        <h1 className="text-xl font-bold text-gray-900">Z-REPORT</h1>
-                        <p className="text-xs text-gray-700 mt-1">NerdPOS System</p>
-                        <p className="text-[10px] text-gray-600 mt-2">
-                            {formatDateTime(new Date().toISOString())}
-                        </p>
-                    </div>
-
-                    {/* Shift Info */}
-                    <div className="space-y-1 border-b border-dashed border-gray-400 pb-3 mb-3 text-xs">
-                        <div className="flex justify-between">
-                            <span className="font-bold">Shift ID:</span>
-                            <span className="font-mono">{shift.id.slice(-8)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="font-bold">Cashier:</span>
-                            <span>{shift.cashierName}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="font-bold">Start:</span>
-                            <span className="font-mono text-[10px]">{formatDateTime(shift.startTime)}</span>
-                        </div>
-                        <div className="flex justify-between">
-                            <span className="font-bold">End:</span>
-                            <span className="font-mono text-[10px]">{formatDateTime(new Date().toISOString())}</span>
-                        </div>
-                    </div>
-
-                    {/* Cash Reconciliation */}
-                    <div className="border-b border-dashed border-gray-400 pb-3 mb-3">
-                        <div className="text-xs font-bold mb-2">CASH RECONCILIATION</div>
-                        <div className="space-y-1 text-xs">
-                            <div className="flex justify-between">
-                                <span>Starting Cash:</span>
-                                <span className="font-mono">{parseFloat(shift.startingCash).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span>+ Cash Sales:</span>
-                                <span className="font-mono">+{parseFloat(shift.totalCashSales).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between border-t border-gray-400 pt-1 mt-1 font-bold">
-                                <span>= Expected Cash:</span>
-                                <span className="font-mono">{parseFloat(shift.expectedCash).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between mt-2">
-                                <span>Counted Cash:</span>
-                                <span className="font-mono">{parseFloat(countedCash).toFixed(2)}</span>
-                            </div>
-                            <div className={`flex justify-between font-bold ${difference.isZero() ? '' : difference.lessThan(0) ? 'text-red-600' : 'text-blue-600'}`}>
-                                <span>Difference:</span>
-                                <span className="font-mono">{difference.greaterThanOrEqualTo(0) ? '+' : ''}{differenceStr}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Sales Summary */}
-                    <div className="border-b border-dashed border-gray-400 pb-3 mb-3">
-                        <div className="text-xs font-bold mb-2">SALES SUMMARY</div>
-                        <div className="space-y-1 text-xs">
-                            <div className="flex justify-between">
-                                <span>Cash Sales:</span>
-                                <span className="font-mono">{parseFloat(shift.totalCashSales).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between">
-                                <span>Card Sales:</span>
-                                <span className="font-mono">{parseFloat(shift.totalCardSales).toFixed(2)}</span>
-                            </div>
-                            <div className="flex justify-between border-t border-gray-400 pt-1 mt-1 font-bold">
-                                <span>Total Sales:</span>
-                                <span className="font-mono">{parseFloat(shift.totalSales).toFixed(2)} SAR</span>
-                            </div>
-                            <div className="flex justify-between mt-1">
-                                <span>Transactions:</span>
-                                <span className="font-mono">{shift.transactionCount}</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="text-center text-xs text-gray-600 pt-3">
-                        <p className="font-bold">END OF Z-REPORT</p>
-                        <p className="font-mono text-[10px] mt-2">{shift.id}</p>
-                    </div>
-                </div>
-            </div>
         </div>
     );
 }

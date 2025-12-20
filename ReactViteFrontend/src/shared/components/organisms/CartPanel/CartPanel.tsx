@@ -1,45 +1,65 @@
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ShoppingCart, Trash2 } from 'lucide-react';
-import { useReactToPrint } from 'react-to-print';
 import { useCartStore } from '@/modules/sales/store/cartStore';
 import { useSalesStore } from '@/modules/sales/store/salesStore';
 import { CartItem } from '@/modules/sales/components/CartItem/CartItem';
 import { PaymentModal } from '@/modules/sales/components/PaymentModal/PaymentModal';
-import { ReceiptTemplate } from '@/modules/sales/components/Receipt/ReceiptTemplate';
+import { PinRequestModal } from '@/modules/auth/components/PinRequestModal'; // ✅ NEW
+import { Permission } from '@/modules/auth/types/auth.types'; // ✅ NEW
+import type { User } from '@/modules/auth/types/auth.types'; // ✅ NEW
 import type { PaymentMethod } from '@/modules/sales/types/pos.types';
-import type { Order } from '@/modules/sales/types/pos.types';
 
 /**
  * CartPanel Component (WITH CHECKOUT INTEGRATION)
  * High-contrast, darker cart panel with payment flow
  */
 export function CartPanel() {
-    const { items, clearCart, updateItemQuantity, voidItem, getTotals } = useCartStore();
+    const { items, clearCart, updateItemQuantity, removeItem, voidItem, getTotals } = useCartStore(); // ✅ Added removeItem
     const { addSale } = useSalesStore();
     const totals = getTotals();
 
     const [showPaymentModal, setShowPaymentModal] = useState(false);
-    const [lastOrder, setLastOrder] = useState<Order | null>(null);
-    const receiptRef = useRef<HTMLDivElement>(null);
 
-    // Handle item removal/void - smart logic based on status
+    // ✅ NEW: PIN Modal State
+    const [showPinModal, setShowPinModal] = useState(false);
+    const [selectedVoidItem, setSelectedVoidItem] = useState<{ id: string; name: string } | null>(null);
+
+    // ✅ SMART HANDLER: Delete/Void Logic (Decision Tree in UI)
     const handleRemoveItem = (itemId: string) => {
         const item = items.find(i => i.id === itemId);
         if (!item) return;
 
-        // For SENT items, ask for void reason
-        if (item.status === 'SENT') {
-            const reason = prompt('Void reason (SPOILAGE/CUSTOMER_REQUEST/INPUT_ERROR)?') || 'OTHER';
-            voidItem(itemId, reason.toUpperCase());
-        } else {
-            voidItem(itemId); // Removes NEW items directly
+        if (item.status === 'NEW') {
+            // Path A: Safe Delete (no PIN required)
+            removeItem(itemId);
+            console.log('✅ [CartPanel] Removed NEW item directly');
+        } else if (item.status === 'SENT') {
+            // Path B: Security Trigger (PIN required)
+            setSelectedVoidItem({ id: itemId, name: item.product.name });
+            setShowPinModal(true);
+            console.log('🔒 [CartPanel] SENT item - requesting manager authorization');
+        } else if (item.status === 'VOIDED') {
+            // Already voided - no action
+            console.warn('⚠️ [CartPanel] Item already voided');
         }
     };
 
-    // Print handler
-    const handlePrint = useReactToPrint({
-        contentRef: receiptRef,
-    });
+    // ✅ PIN SUCCESS HANDLER
+    const handlePinSuccess = (authorizer: User) => {
+        if (!selectedVoidItem) return;
+
+        // Call voidItem with authorizer details
+        voidItem(selectedVoidItem.id, 'Manager void from cart', authorizer);
+
+        // Close modal and reset
+        setShowPinModal(false);
+        setSelectedVoidItem(null);
+
+        console.log(`✅ [CartPanel] Item voided by ${authorizer.fullName}`);
+        // 📌 TODO: Add toast notification here
+    };
+
+
 
     // Payment confirmation handler
     const handlePaymentConfirm = (paymentMethod: PaymentMethod, cashTendered?: string) => {
@@ -56,20 +76,12 @@ export function CartPanel() {
             cashTendered
         );
 
-        setLastOrder(order);
         setShowPaymentModal(false);
-
-        // Print receipt
-        setTimeout(() => {
-            if (receiptRef.current) {
-                handlePrint();
-            }
-        }, 500);
 
         // Clear cart
         setTimeout(() => {
             clearCart();
-        }, 1000);
+        }, 500);
 
         console.log('✅ Payment completed:', order.invoiceNumber);
     };
@@ -225,12 +237,20 @@ export function CartPanel() {
                 />
             )}
 
-            {/* Hidden Receipt Template */}
-            {lastOrder && (
-                <div style={{ display: 'none' }}>
-                    <ReceiptTemplate ref={receiptRef} order={lastOrder} />
-                </div>
-            )}
+            {/* ✅ PIN Request Modal (Security Layer) */}
+            <PinRequestModal
+                isOpen={showPinModal}
+                onClose={() => {
+                    setShowPinModal(false);
+                    setSelectedVoidItem(null);
+                }}
+                onSuccess={handlePinSuccess}
+                requiredPermission={Permission.VOID_SENT_ITEM}
+                reason="Void Sent Item"
+                context={{
+                    itemName: selectedVoidItem?.name,
+                }}
+            />
         </>
     );
 }

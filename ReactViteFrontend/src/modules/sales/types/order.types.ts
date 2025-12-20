@@ -2,8 +2,17 @@
 
 /**
  * Order Type enum
+ * PHASE 4 UPDATE: Expanded to include granular delivery providers
+ * for better revenue reporting and analytics
  */
-export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | 'DRIVE_THRU' | 'DELIVERY_UBEREATS';
+export type OrderType =
+    | 'DINE_IN'              // 🍽️ Table service
+    | 'TAKEAWAY'             // 📦 Customer pickup
+    | 'DRIVE_THRU'           // 🚙 Drive-through service
+    | 'DELIVERY_INTERNAL'    // 🚗 In-house delivery driver
+    | 'DELIVERY_TALABAT'     // 🛵 Talabat integration
+    | 'DELIVERY_UBER'        // 🚚 UberEats integration
+    | 'DELIVERY_JAHEZ';      // 🏍️ Jahez (Saudi delivery app)
 
 /**
  * Order Status enum

@@ -1,49 +1,79 @@
-import { useState, useEffect } from 'react';
-import { X, Clock, DollarSign, RotateCcw } from 'lucide-react';
+import React from 'react';
+import { X, Clock, RotateCcw, Trash2 } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { cn } from '@/lib/utils';
-import { HeldOrdersService, type HeldOrder } from '../../services/held-orders.service';
+import { useHeldOrdersStore } from '../../store/heldOrdersStore';
+import { useCartStore } from '../../store/cartStore';
+import toast from 'react-hot-toast';
+import Decimal from 'decimal.js';
 
 export interface HeldOrdersModalProps {
     onClose: () => void;
-    onRestore: (order: HeldOrder) => void;
 }
 
-export function HeldOrdersModal({ onClose, onRestore }: HeldOrdersModalProps) {
-    const [heldOrders, setHeldOrders] = useState<HeldOrder[]>([]);
+// Order Type Icon Mapping
+const orderTypeIcons: Record<string, string> = {
+    TAKEAWAY: '📦',
+    DINE_IN: '🍽️',
+    DRIVE_THRU: '🚙',
+    DELIVERY_INTERNAL: '🚗',
+    DELIVERY_TALABAT: '🛵',
+    DELIVERY_UBER: '🚚',
+    DELIVERY_JAHEZ: '🏍️',
+};
 
-    useEffect(() => {
-        loadHeldOrders();
-    }, []);
+export function HeldOrdersModal({ onClose }: HeldOrdersModalProps) {
+    const heldOrders = useHeldOrdersStore((state) => state.heldOrders);
+    const resumeOrder = useHeldOrdersStore((state) => state.resumeOrder);
+    const deleteHeldOrder = useHeldOrdersStore((state) => state.deleteHeldOrder);
 
-    const loadHeldOrders = () => {
-        const orders = HeldOrdersService.getHeldOrders();
-        setHeldOrders(orders);
-    };
-
-    const handleRestore = (order: HeldOrder) => {
-        onRestore(order);
-        HeldOrdersService.deleteOrder(order.id);
-        onClose();
-    };
-
-    const handleDelete = (orderId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
-        if (confirm('هل تريد حذف هذا الطلب المعلق؟')) {
-            HeldOrdersService.deleteOrder(orderId);
-            loadHeldOrders();
-        }
-    };
-
-    const getTimeElapsed = (heldAt: string): string => {
+    const getTimeElapsed = (timestamp: number): string => {
         const now = new Date().getTime();
-        const held = new Date(heldAt).getTime();
-        const diffMinutes = Math.floor((now - held) / 1000 / 60);
+        const diffMinutes = Math.floor((now - timestamp) / 1000 / 60);
 
         if (diffMinutes < 1) return 'الآن';
         if (diffMinutes < 60) return `${diffMinutes} دقيقة`;
         const diffHours = Math.floor(diffMinutes / 60);
         return `${diffHours} ساعة`;
+    };
+
+    const getOrderTotal = (items: any[]): string => {
+        const total = items
+            .filter(item => item.status !== 'VOIDED')
+            .reduce((sum, item) => sum.plus(item.lineTotal), new Decimal(0));
+        return total.toFixed(2);
+    };
+
+    const handleRestore = (holdId: string) => {
+        const heldOrder = resumeOrder(holdId);
+
+        if (heldOrder) {
+            // ✅ CRITICAL: Restore items to cart while preserving SENT status
+            useCartStore.setState({
+                items: heldOrder.items,
+                orderType: heldOrder.orderType,
+                tableId: heldOrder.tableId || null,
+            });
+
+            const reference = heldOrder.tableName || heldOrder.customerName || 'طلب';
+            const sentItemsCount = heldOrder.items.filter(item => item.status === 'SENT').length;
+
+            toast.success(
+                `🔄 تم استعادة: ${reference}${sentItemsCount > 0 ? ` (${sentItemsCount} منتج تم إرساله للمطبخ)` : ''}`,
+                { duration: 4000 }
+            );
+
+            onClose();
+        } else {
+            toast.error('❌ فشل استعادة الطلب');
+        }
+    };
+
+    const handleDelete = (orderId: string, reference: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (confirm(`هل تريد حذف هذا الطلب المعلق: ${reference}؟`)) {
+            deleteHeldOrder(orderId);
+            toast.success(`🗑️ تم الحذف: ${reference}`);
+        }
     };
 
     return (
@@ -100,79 +130,97 @@ export function HeldOrdersModal({ onClose, onRestore }: HeldOrdersModalProps) {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {heldOrders.map((order, index) => (
-                                <motion.div
-                                    key={order.id}
-                                    initial={{ opacity: 0, y: 20 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ delay: index * 0.05 }}
-                                    className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden hover:bg-white/10 hover:border-orange-400/30 transition-all duration-300 group"
-                                >
-                                    {/* Card Header */}
-                                    <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 p-4 border-b border-white/5">
-                                        <div className="flex items-start justify-between mb-2">
-                                            <div className="flex-1">
-                                                <h3 className="text-lg font-bold text-white font-['Almarai'] mb-1">
-                                                    {order.referenceNote || 'طلب بدون عنوان'}
-                                                </h3>
-                                                <div className="flex items-center gap-2 text-sm text-gray-400">
-                                                    <Clock className="w-4 h-4" />
-                                                    <span>معلق منذ {getTimeElapsed(order.heldAt)}</span>
+                            {heldOrders.map((order, index) => {
+                                const reference = order.tableName || order.customerName || 'طلب بدون عنوان';
+                                const icon = orderTypeIcons[order.orderType] || '📦';
+                                const total = getOrderTotal(order.items);
+                                const sentCount = order.items.filter(item => item.status === 'SENT').length;
+
+                                return (
+                                    <motion.div
+                                        key={order.id}
+                                        initial={{ opacity: 0, y: 20 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        transition={{ delay: index * 0.05 }}
+                                        className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden hover:bg-white/10 hover:border-orange-400/30 transition-all duration-300 group"
+                                    >
+                                        {/* Card Header */}
+                                        <div className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 p-4 border-b border-white/5">
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-2xl">{icon}</span>
+                                                        <h3 className="text-lg font-bold text-white font-['Almarai']">
+                                                            {reference}
+                                                        </h3>
+                                                    </div>
+                                                    {/* ✅ NEW: SENT Items Badge */}
+                                                    {sentCount > 0 && (
+                                                        <div className="flex items-center gap-2 mb-2">
+                                                            <span className="px-2 py-0.5 bg-orange-500/20 border border-orange-500/30 rounded-md text-xs font-medium text-orange-300">
+                                                                🍳 {sentCount} تم إرساله للمطبخ
+                                                            </span>
+                                                        </div>
+                                                    )}
+                                                    <div className="flex items-center gap-2 text-sm text-gray-400">
+                                                        <Clock className="w-4 h-4" />
+                                                        <span>معلق منذ {getTimeElapsed(order.timestamp)}</span>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => handleDelete(order.id, reference, e)}
+                                                    className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 flex items-center justify-center transition-colors"
+                                                >
+                                                    <Trash2 className="w-4 h-4 text-red-400" />
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Card Body */}
+                                        <div className="p-4">
+                                            {/* Items Summary */}
+                                            <div className="mb-4">
+                                                <p className="text-xs text-gray-500 mb-2 font-['Almarai']">المنتجات:</p>
+                                                <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
+                                                    {order.items.map((item, idx) => (
+                                                        <div key={idx} className="flex justify-between text-sm">
+                                                            <span className="text-gray-300 flex items-center gap-2">
+                                                                {item.product.name}
+                                                                {item.status === 'SENT' && (
+                                                                    <span className="text-xs text-orange-400">✓</span>
+                                                                )}
+                                                                {item.status === 'VOIDED' && (
+                                                                    <span className="text-xs text-red-400 line-through">⛔</span>
+                                                                )}
+                                                            </span>
+                                                            <span className="text-gray-400">×{item.quantity}</span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
+
+                                            {/* Total */}
+                                            <div className="bg-white/5 rounded-xl p-3 mb-4">
+                                                <div className="flex justify-between text-lg font-bold">
+                                                    <span className="text-white">الإجمالي:</span>
+                                                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400">
+                                                        {total} SAR
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Restore Button */}
                                             <button
-                                                onClick={(e) => handleDelete(order.id, e)}
-                                                className="w-8 h-8 rounded-lg bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 flex items-center justify-center transition-colors"
+                                                onClick={() => handleRestore(order.id)}
+                                                className="w-full h-12 rounded-xl bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30 border border-orange-400/30 text-orange-400 font-bold font-['Almarai'] flex items-center justify-center gap-2 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(251,146,60,0.2)]"
                                             >
-                                                <X className="w-4 h-4 text-red-400" />
+                                                <RotateCcw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
+                                                <span>استعادة الطلب</span>
                                             </button>
                                         </div>
-                                    </div>
-
-                                    {/* Card Body */}
-                                    <div className="p-4">
-                                        {/* Items Summary */}
-                                        <div className="mb-4">
-                                            <p className="text-xs text-gray-500 mb-2 font-['Almarai']">المنتجات:</p>
-                                            <div className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar">
-                                                {order.items.map((item, idx) => (
-                                                    <div key={idx} className="flex justify-between text-sm">
-                                                        <span className="text-gray-300">{item.product.name}</span>
-                                                        <span className="text-gray-400">×{item.quantity}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        {/* Totals */}
-                                        <div className="bg-white/5 rounded-xl p-3 mb-4 space-y-1">
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-gray-400">المجموع الفرعي:</span>
-                                                <span className="text-white font-mono">{order.subtotal.toFixed(2)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-sm">
-                                                <span className="text-gray-400">الضريبة:</span>
-                                                <span className="text-white font-mono">{order.taxAmount.toFixed(2)}</span>
-                                            </div>
-                                            <div className="flex justify-between text-lg font-bold border-t border-white/10 pt-2">
-                                                <span className="text-white">الإجمالي:</span>
-                                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-amber-400">
-                                                    {order.totalAmount.toFixed(2)} SAR
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        {/* Restore Button */}
-                                        <button
-                                            onClick={() => handleRestore(order)}
-                                            className="w-full h-12 rounded-xl bg-gradient-to-r from-orange-500/20 to-amber-500/20 hover:from-orange-500/30 hover:to-amber-500/30 border border-orange-400/30 text-orange-400 font-bold font-['Almarai'] flex items-center justify-center gap-2 transition-all duration-300 group-hover:shadow-[0_0_20px_rgba(251,146,60,0.2)]"
-                                        >
-                                            <RotateCcw className="w-5 h-5 group-hover:rotate-180 transition-transform duration-500" />
-                                            <span>استعادة الطلب</span>
-                                        </button>
-                                    </div>
-                                </motion.div>
-                            ))}
+                                    </motion.div>
+                                );
+                            })}
                         </div>
                     )}
                 </div>

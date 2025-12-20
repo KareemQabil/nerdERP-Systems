@@ -71,7 +71,7 @@ export class POSService {
                     modifiers: prod.modifiers || [],
                     trackInventory: prod.trackInventory !== false,
                     isPrepared: prod.isPrepared || false,
-                })));
+                } as unknown as Product)));
             }
 
             return products;
