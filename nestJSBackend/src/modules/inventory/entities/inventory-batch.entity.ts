@@ -4,6 +4,14 @@ import { Product } from '../../products/entities/product.entity';
 import { Warehouse } from './warehouse.entity';
 import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
 
+export enum QualityStatus {
+    GOOD = 'GOOD',
+    DAMAGED = 'DAMAGED',
+    EXPIRED = 'EXPIRED',
+    QUARANTINE = 'QUARANTINE',
+    RETURNED = 'RETURNED',
+}
+
 @Entity('inventory_batches')
 @Index(['product', 'warehouse', 'receivedDate']) // Critical for FIFO performance
 export class InventoryBatch extends AbstractEntity {
@@ -14,6 +22,9 @@ export class InventoryBatch extends AbstractEntity {
     @ManyToOne(() => Warehouse, { nullable: false })
     @JoinColumn({ name: 'warehouse_id' })
     warehouse: Warehouse;
+
+    @Column({ name: 'batch_number', nullable: true })
+    batchNumber: string;
 
     @Column({
         name: 'qty_remaining',
@@ -38,4 +49,22 @@ export class InventoryBatch extends AbstractEntity {
 
     @Column({ name: 'expiry_date', type: 'timestamp with time zone', nullable: true })
     expiryDate: Date;
+
+    // NEW: Quality tracking
+    @Column({
+        name: 'quality_status',
+        type: 'enum',
+        enum: QualityStatus,
+        default: QualityStatus.GOOD,
+    })
+    qualityStatus: QualityStatus;
+
+    @Column({ name: 'supplier_id', nullable: true })
+    supplierId: string;
+
+    @Column({ name: 'purchase_order_id', nullable: true })
+    purchaseOrderId: string;
+
+    @Column({ type: 'jsonb', nullable: true })
+    metadata: Record<string, any>;
 }
