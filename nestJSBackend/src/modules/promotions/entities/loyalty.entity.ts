@@ -73,7 +73,7 @@ export class CustomerLoyalty extends AbstractEntity {
     availablePoints: number;
 
     @Column({ name: 'tier_id', nullable: true })
-    tierId: string;
+    tierId?: string;
 
     @Column({ name: 'lifetime_spend', type: 'decimal', precision: 10, scale: 3, transformer: new DecimalTransformer(), default: 0 })
     lifetimeSpend: number;

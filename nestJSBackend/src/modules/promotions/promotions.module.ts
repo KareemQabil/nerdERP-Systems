@@ -7,7 +7,9 @@ import { Customer, CustomerAddress } from './entities/customer.entity';
 import { PromotionUsage } from '../products/entities/product-variant.entity';
 import { CustomerService } from './services/customer.service';
 import { PromotionUsageService } from './services/promotion-usage.service';
+import { LoyaltyService } from './services/loyalty.service';
 import { CustomerController } from './controllers/customer.controller';
+import { LoyaltyController } from './controllers/loyalty.controller';
 
 @Module({
     imports: [
@@ -23,8 +25,8 @@ import { CustomerController } from './controllers/customer.controller';
             PromotionUsage,
         ]),
     ],
-    controllers: [CustomerController],
-    providers: [CustomerService, PromotionUsageService],
-    exports: [CustomerService, PromotionUsageService],
+    controllers: [CustomerController, LoyaltyController],
+    providers: [CustomerService, PromotionUsageService, LoyaltyService],
+    exports: [CustomerService, PromotionUsageService, LoyaltyService],
 })
 export class PromotionsModule { }

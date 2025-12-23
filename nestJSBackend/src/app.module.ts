@@ -21,6 +21,8 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { UsersModule } from './modules/users/users.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { TranslationsModule } from './modules/translations/translations.module';
+import { ZatcaModule } from './modules/zatca/zatca.module';
+import { CashModule } from './modules/cash/cash.module';
 import { SeedDataService } from './common/services/seed-data.service';
 import { SeedComprehensiveService } from './common/services/seed-comprehensive.service';
 import { SeedController } from './common/controllers/seed.controller';
@@ -90,6 +92,8 @@ import { RegisterSession } from './modules/cash/entities/register-session.entity
     UsersModule,
     ReportingModule,
     TranslationsModule,
+    ZatcaModule,
+    CashModule,
   ],
   controllers: [AppController, SeedController],
   providers: [
