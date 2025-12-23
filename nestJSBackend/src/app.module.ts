@@ -36,6 +36,11 @@ import { User, Role, AuditLog } from './modules/users/entities/user.entity';
 import { Device } from './modules/users/entities/device.entity';
 import { PaymentMethod } from './modules/payments/entities/payment-method.entity';
 import { Warehouse } from './modules/inventory/entities/warehouse.entity';
+// Phase 2 entities
+import { KitchenStation } from './modules/kitchen/entities/kitchen-station.entity';
+import { Table, TableZone } from './modules/tables/entities/table.entity';
+import { Reservation } from './modules/tables/entities/reservation.entity';
+import { RegisterSession } from './modules/cash/entities/register-session.entity';
 
 @Module({
   imports: [
@@ -65,7 +70,9 @@ import { Warehouse } from './modules/inventory/entities/warehouse.entity';
     TypeOrmModule.forFeature([
       Organization, Store, TaxProfile, TaxDefinition,
       Product, ProductCategory, ProductVariant, Modifier, ModifierOption,
-      Customer, User, Role, AuditLog, Device, PaymentMethod, Warehouse
+      Customer, User, Role, AuditLog, Device, PaymentMethod, Warehouse,
+      // Phase 2 entities
+      KitchenStation, TableZone, Table, Reservation, RegisterSession,
     ]),
     ProductsModule,
     InventoryModule,

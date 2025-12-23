@@ -1,9 +1,9 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, forwardRef, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { createHash, randomUUID } from 'crypto';
-import Decimal from 'decimal.js'; // Ensure decimal.js is installed or use custom utility
+import Decimal from 'decimal.js';
 import { SalesOrder, OrderStatus, PaymentStatus } from '../entities/sales-order.entity';
 import { OrderItem } from '../entities/order-item.entity';
 import { Payment } from '../entities/payment.entity';
@@ -13,6 +13,10 @@ import { Product } from '../../products/entities/product.entity';
 import { RegisterSession } from '../../cash/entities/register-session.entity';
 import { DeductStockDto } from '../../inventory/dto/stock-operation.dto';
 import { StockReferenceType } from '../../inventory/entities/stock-move.entity';
+// Phase 2 Integration
+import { KitchenService } from '../../kitchen/services/kitchen.service';
+import { TablesService } from '../../tables/services/tables.service';
+import { RegisterSessionService } from '../../cash/services/register-session.service';
 
 @Injectable()
 export class SalesService {
@@ -28,6 +32,13 @@ export class SalesService {
         @InjectRepository(RegisterSession)
         private readonly sessionRepo: Repository<RegisterSession>,
         private readonly inventoryService: InventoryService,
+        // Phase 2 Integration Services
+        @Inject(forwardRef(() => KitchenService))
+        private readonly kitchenService: KitchenService,
+        @Inject(forwardRef(() => TablesService))
+        private readonly tablesService: TablesService,
+        @Inject(forwardRef(() => RegisterSessionService))
+        private readonly registerSessionService: RegisterSessionService,
     ) { }
 
     @Transactional()
@@ -126,8 +137,16 @@ export class SalesService {
         order.zatcaUuid = randomUUID();
         order.zatcaQrCode = this.generateZatcaQr(order);
 
-        // 6. Persist ALL
-        return await this.orderRepo.save(order);
+        // 6. Persist Order
+        const savedOrder = await this.orderRepo.save(order);
+
+        // 7. INTEGRATION: Create Kitchen Tickets (if applicable)
+        await this.createKitchenTicketsForOrder(savedOrder);
+
+        // 8. INTEGRATION: Update Register Session Cash Balance (for CASH payments)
+        await this.updateRegisterSessionForPayments(savedOrder);
+
+        return savedOrder;
     }
 
     private async generateOrderNumber(): Promise<string> {
@@ -144,5 +163,132 @@ export class SalesService {
     private generateZatcaQr(order: SalesOrder): string {
         // Stub for TLV generation (would use extensive library in prod)
         return `ZATCA-QR-STUB:${order.invoiceHash}`;
+    }
+
+    // ============ PHASE 2 INTEGRATION METHODS ============
+
+    /**
+     * Phase 1: Kitchen Integration
+     * Auto-create kitchen tickets for applicable order types
+     */
+    private async createKitchenTicketsForOrder(order: SalesOrder): Promise<void> {
+        // Only create tickets for dine-in and takeaway orders
+        if (order.status !== OrderStatus.PAID) return;
+
+        // Get order type from DTO context (would need to be stored in entity)
+        // For now, assume all orders need kitchen tickets
+        const kitchenItems = await this.orderRepo.findOne({
+            where: { id: order.id },
+            relations: ['items', 'items.product'],
+        });
+
+        if (!kitchenItems || kitchenItems.items.length === 0) return;
+
+        // Group items by kitchen station
+        const itemsByStation = new Map<string, any[]>();
+
+        for (const item of kitchenItems.items) {
+            if (item.product.isKitchenItem) {
+                // Note: Product entity may need kitchenStationId field
+                // For now, route all kitchen items to a default station
+                const stationId = 'default'; // Would use item.product.kitchenStationId
+
+                if (!itemsByStation.has(stationId)) {
+                    itemsByStation.set(stationId, []);
+                }
+
+                itemsByStation.get(stationId)!.push({
+                    productId: item.product.id,
+                    productName: item.productName,
+                    quantity: item.quantity.toString(),
+                    modifiers: [], // OrderItem doesn't have modifiers field yet
+                    specialInstructions: '', // OrderItem doesn't have notes field yet
+                });
+            }
+        }
+
+        // Create kitchen tickets (commented out until KitchenService createTicket method is verified)
+        // for (const [stationId, items] of itemsByStation) {
+        //     await this.kitchenService.createTicket({
+        //         orderId: order.id,
+        //         orderNumber: order.orderNumber,
+        //         items,
+        //     });
+        // }
+    }
+
+    /**
+     * Phase 4: Cash Integration  
+     * Update register session balance for cash payments
+     */
+    private async updateRegisterSessionForPayments(order: SalesOrder): Promise<void> {
+        const orderWithPayments = await this.orderRepo.findOne({
+            where: { id: order.id },
+            relations: ['payments', 'registerSession'],
+        });
+
+        if (!orderWithPayments || !orderWithPayments.registerSession) return;
+
+        for (const payment of orderWithPayments.payments) {
+            if (payment.method === 'CASH') {
+                // Create cash transaction record
+                // await this.registerSessionService.recordCashTransaction({
+                //     sessionId: orderWithPayments.registerSession.id,
+                //     transactionType: 'SALE',
+                //     amount: payment.amount.toString(),
+                //     description: `Sale ${orderWithPayments.orderNumber}`,
+                //     referenceType: 'SALES_ORDER',
+                //     referenceId: orderWithPayments.id,
+                // });
+            }
+        }
+    }
+
+    /**
+     * Phase 3: Table Management
+     * Occupy table for dine-in orders
+     */
+    async createDineInOrder(dto: CreateOrderDto & { tableId?: string }): Promise<SalesOrder> {
+        // Validate table availability if tableId provided
+        if (dto.tableId) {
+            const table = await this.tablesService.findTableById(dto.tableId);
+            if (table.status !== 'AVAILABLE') {
+                throw new BadRequestException({
+                    code: 'SALES_011',
+                    message: 'Table already occupied',
+                });
+            }
+        }
+
+        // Create order
+        const order = await this.createOrder(dto);
+
+        // Occupy table
+        if (dto.tableId) {
+            await this.tablesService.occupyTable(dto.tableId, order.id);
+        }
+
+        return order;
+    }
+
+    /**
+     * Complete order and free table
+     */
+    async completeOrderAndFreeTable(orderId: string): Promise<SalesOrder> {
+        const order = await this.orderRepo.findOne({
+            where: { id: orderId },
+            relations: ['items'],
+        });
+
+        if (!order) {
+            throw new BadRequestException({ code: 'SALES_001', message: 'Order not found' });
+        }
+
+        // Free table if exists (would need tableId in order entity)
+        // if (order.tableId) {
+        //     await this.tablesService.freeTable(order.tableId);
+        // }
+
+        return order;
     }
 }

@@ -13,6 +13,10 @@ import { User, Role } from '../../modules/users/entities/user.entity';
 import { Device } from '../../modules/users/entities/device.entity';
 import { PaymentMethod } from '../../modules/payments/entities/payment-method.entity';
 import { Warehouse } from '../../modules/inventory/entities/warehouse.entity';
+import { KitchenStation } from '../../modules/kitchen/entities/kitchen-station.entity';
+import { Table, TableZone } from '../../modules/tables/entities/table.entity';
+import { Reservation } from '../../modules/tables/entities/reservation.entity';
+import { RegisterSession } from '../../modules/cash/entities/register-session.entity';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
@@ -33,6 +37,12 @@ export class SeedComprehensiveService {
         @InjectRepository(Device) private deviceRepo: Repository<Device>,
         @InjectRepository(PaymentMethod) private paymentMethodRepo: Repository<PaymentMethod>,
         @InjectRepository(Warehouse) private warehouseRepo: Repository<Warehouse>,
+        // Phase 2 modules
+        @InjectRepository(KitchenStation) private kitchenStationRepo: Repository<KitchenStation>,
+        @InjectRepository(TableZone) private tableZoneRepo: Repository<TableZone>,
+        @InjectRepository(Table) private tableRepo: Repository<Table>,
+        @InjectRepository(Reservation) private reservationRepo: Repository<Reservation>,
+        @InjectRepository(RegisterSession) private registerSessionRepo: Repository<RegisterSession>,
     ) { }
 
     async seed() {
@@ -285,7 +295,7 @@ export class SeedComprehensiveService {
 
             // 10. Products
             console.log('🍔 Creating products...');
-            const burger = await this.productRepo.save(this.productRepo.create({
+            const classicBurger = await this.productRepo.save(this.productRepo.create({
                 sku: 'BURGER-001',
                 name: 'Classic Burger',
                 nameAr: 'برجر كلاسيك',
@@ -296,7 +306,7 @@ export class SeedComprehensiveService {
                 category: burgersCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const chickenBurger = await this.productRepo.save(this.productRepo.create({
                 sku: 'BURGER-002',
                 name: 'Chicken Burger',
                 nameAr: 'برجر دجاج',
@@ -307,7 +317,7 @@ export class SeedComprehensiveService {
                 category: burgersCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const margheritaPizza = await this.productRepo.save(this.productRepo.create({
                 sku: 'PIZZA-001',
                 name: 'Margherita Pizza',
                 nameAr: 'بيتزا مارجريتا',
@@ -318,7 +328,7 @@ export class SeedComprehensiveService {
                 category: pizzaCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const pepperoniPizza = await this.productRepo.save(this.productRepo.create({
                 sku: 'PIZZA-002',
                 name: 'Pepperoni Pizza',
                 nameAr: 'بيتزا ببروني',
@@ -329,7 +339,7 @@ export class SeedComprehensiveService {
                 category: pizzaCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const cola = await this.productRepo.save(this.productRepo.create({
                 sku: 'DRINK-001',
                 name: 'Cola',
                 nameAr: 'كولا',
@@ -339,7 +349,7 @@ export class SeedComprehensiveService {
                 category: drinksCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const orangeJuice = await this.productRepo.save(this.productRepo.create({
                 sku: 'DRINK-002',
                 name: 'Orange Juice',
                 nameAr: 'عصير برتقال',
@@ -349,7 +359,7 @@ export class SeedComprehensiveService {
                 category: drinksCategory,
             }));
 
-            await this.productRepo.save(this.productRepo.create({
+            const iceCream = await this.productRepo.save(this.productRepo.create({
                 sku: 'DESSERT-001',
                 name: 'Ice Cream',
                 nameAr: 'آيس كريم',
@@ -400,18 +410,222 @@ export class SeedComprehensiveService {
             console.log(`   - Modifiers: 2 (with 5 options)`);
             console.log(`   - Customers: 3`);
 
+            // ================== PHASE 2 MODULES ===================
+
+            // 12. Kitchen Stations
+            console.log('🍳 Creating kitchen stations...');
+            const kitchenStations = await this.kitchenStationRepo.save([
+                this.kitchenStationRepo.create({
+                    stationName: 'Grill Station',
+                    stationCode: 'GRILL',
+                    storeId: mainStore.id,
+                    color: '#EF4444',
+                    isActive: true,
+                    displayOrder: 1,
+                }),
+                this.kitchenStationRepo.create({
+                    stationName: 'Fryer Station',
+                    stationCode: 'FRYER',
+                    storeId: mainStore.id,
+                    color: '#F59E0B',
+                    isActive: true,
+                    displayOrder: 2,
+                }),
+                this.kitchenStationRepo.create({
+                    stationName: 'Cold Station',
+                    stationCode: 'COLD',
+                    storeId: mainStore.id,
+                    color: '#3B82F6',
+                    isActive: true,
+                    displayOrder: 3,
+                }),
+                this.kitchenStationRepo.create({
+                    stationName: 'Salad Station',
+                    stationCode: 'SALAD',
+                    storeId: mainStore.id,
+                    color: '#10B981',
+                    isActive: true,
+                    displayOrder: 4,
+                }),
+                this.kitchenStationRepo.create({
+                    stationName: 'Dessert Station',
+                    stationCode: 'DESSERT',
+                    storeId: mainStore.id,
+                    color: '#8B5CF6',
+                    isActive: true,
+                    displayOrder: 5,
+                }),
+            ]);
+
+            // Link products to kitchen stations (will be done via migration/update later)
+            // Note: Product entity may need kitchenStation relation field added
+            console.log('  ℹ️  Kitchen station linking will be configured separately');
+
+            // 13. Table Zones
+            console.log('🏢 Creating table zones...');
+            const tableZones = await this.tableZoneRepo.save([
+                this.tableZoneRepo.create({
+                    zoneName: 'Main Floor',
+                    storeId: mainStore.id,
+                    color: '#3B82F6',
+                    displayOrder: 1,
+                    isActive: true,
+                }),
+                this.tableZoneRepo.create({
+                    zoneName: 'Outdoor Seating',
+                    storeId: mainStore.id,
+                    color: '#10B981',
+                    displayOrder: 2,
+                    isActive: true,
+                }),
+                this.tableZoneRepo.create({
+                    zoneName: 'VIP Section',
+                    storeId: mainStore.id,
+                    color: '#F59E0B',
+                    displayOrder: 3,
+                    isActive: true,
+                }),
+            ]);
+
+            // 14. Tables
+            console.log('🪑 Creating tables...');
+            const tables = await this.tableRepo.save([
+                // Main Floor tables
+                this.tableRepo.create({
+                    tableNumber: 'T1',
+                    zone: tableZones[0],
+                    storeId: mainStore.id,
+                    minSeats: 2,
+                    maxSeats: 4,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 100, y: 100, width: 80, height: 80, shape: 'rectangle' },
+                }),
+                this.tableRepo.create({
+                    tableNumber: 'T2',
+                    zone: tableZones[0],
+                    storeId: mainStore.id,
+                    minSeats: 2,
+                    maxSeats: 4,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 200, y: 100, width: 80, height: 80, shape: 'rectangle' },
+                }),
+                this.tableRepo.create({
+                    tableNumber: 'T3',
+                    zone: tableZones[0],
+                    storeId: mainStore.id,
+                    minSeats: 4,
+                    maxSeats: 6,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 300, y: 100, width: 120, height: 80, shape: 'rectangle' },
+                }),
+                // Outdoor tables
+                this.tableRepo.create({
+                    tableNumber: 'O1',
+                    zone: tableZones[1],
+                    storeId: mainStore.id,
+                    minSeats: 2,
+                    maxSeats: 2,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 100, y: 300, width: 60, height: 60, shape: 'circle' },
+                }),
+                this.tableRepo.create({
+                    tableNumber: 'O2',
+                    zone: tableZones[1],
+                    storeId: mainStore.id,
+                    minSeats: 2,
+                    maxSeats: 4,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 200, y: 300, width: 80, height: 60, shape: 'oval' },
+                }),
+                // VIP tables
+                this.tableRepo.create({
+                    tableNumber: 'VIP1',
+                    zone: tableZones[2],
+                    storeId: mainStore.id,
+                    minSeats: 4,
+                    maxSeats: 8,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 500, y: 100, width: 160, height: 120, shape: 'rectangle' },
+                }),
+                this.tableRepo.create({
+                    tableNumber: 'VIP2',
+                    zone: tableZones[2],
+                    storeId: mainStore.id,
+                    minSeats: 6,
+                    maxSeats: 10,
+                    status: 'AVAILABLE' as any,
+                    isActive: true,
+                    floorPosition: { x: 500, y: 250, width: 180, height: 140, shape: 'rectangle' },
+                }),
+            ]);
+
+            // 15. Reservations
+            console.log('📅 Creating sample reservations...');
+            const today = new Date();
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+
+            await this.reservationRepo.save([
+                this.reservationRepo.create({
+                    reservationNumber: `RES-${Date.now()}-1`,
+                    table: tables[5], // VIP1
+                    storeId: mainStore.id,
+                    customerName: 'Ahmed Al-Farsi',
+                    customerPhone: '+966501234567',
+                    partySize: 6,
+                    reservationDate: tomorrow,
+                    reservationTime: '19:00',
+                    durationMinutes: 120,
+                    status: 'PENDING' as any,
+                    notes: 'Birthday celebration',
+                    specialRequests: 'Need birthday cake',
+                }),
+                this.reservationRepo.create({
+                    reservationNumber: `RES-${Date.now()}-2`,
+                    table: tables[2], // T3
+                    storeId: mainStore.id,
+                    customerName: 'Fatima Mohammad',
+                    customerPhone: '+966507654321',
+                    partySize: 4,
+                    reservationDate: today,
+                    reservationTime: '20:30',
+                    durationMinutes: 90,
+                    status: 'CONFIRMED' as any,
+                    confirmedAt: new Date(),
+                }),
+            ]);
+
+            console.log('✅ Comprehensive seed with Phase 2 modules completed!');
+            console.log('📊 Phase 2 Summary:');
+            console.log(`   - Kitchen Stations: 5`);
+            console.log(`   - Table Zones: 3`);
+            console.log(`   - Tables: 7`);
+            console.log(`   - Reservations: 2`);
+
             return {
                 success: true,
                 summary: {
                     organizations: 1,
                     stores: 2,
                     users: 3,
+                    roles: 3,
                     products: 7,
                     customers: 3,
+                    paymentMethods: 3,
+                    kitchenStations: 5,
+                    tableZones: 3,
+                    tables: 7,
+                    reservations: 2,
                 },
             };
         } catch (error) {
-            console.error('❌ Seed failed:', error.message);
+            console.error('❌ Seed failed:', error);
             throw error;
         }
     }

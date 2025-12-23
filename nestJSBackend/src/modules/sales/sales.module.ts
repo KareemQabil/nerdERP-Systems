@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { InventoryModule } from '../inventory/inventory.module';
 import { SalesOrder } from './entities/sales-order.entity';
@@ -15,6 +15,10 @@ import { SalesController } from './controllers/sales.controller';
 import { CashManagementController } from './controllers/cash-management.controller';
 import { Product } from '../products/entities/product.entity';
 import { RegisterSession } from '../cash/entities/register-session.entity';
+// Phase 2 Integration Modules
+import { KitchenModule } from '../kitchen/kitchen.module';
+import { TablesModule } from '../tables/tables.module';
+import { CashModule } from '../cash/cash.module';
 
 @Module({
     imports: [
@@ -32,6 +36,10 @@ import { RegisterSession } from '../cash/entities/register-session.entity';
             RegisterSession
         ]),
         InventoryModule,
+        // Phase 2 Integration Modules (use forwardRef if needed)
+        forwardRef(() => KitchenModule),
+        forwardRef(() => TablesModule),
+        forwardRef(() => CashModule),
     ],
     controllers: [SalesController, CashManagementController],
     providers: [SalesService, CashManagementService],
