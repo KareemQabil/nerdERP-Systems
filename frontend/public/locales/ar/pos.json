@@ -1,0 +1,121 @@
+{
+    "title": "نقطة البيع",
+    "cart": "السلة",
+    "cartEmpty": "السلة فارغة",
+    "startAddingProducts": "ابدأ بإضافة منتجات",
+    "clearCart": "تفريغ السلة",
+    "items": "عناصر",
+    "item": "عنصر",
+    "checkout": "الدفع",
+    "payment": "الدفع",
+    "customer": "عميل",
+    "discount": "خصم",
+    "hold": "تعليق",
+    "pendingInvoices": "الفواتير المعلقة",
+    "print": "طباعة",
+    "kitchen": "مطبخ",
+    "returns": "استرجاع",
+    "orders": "الطلبات",
+    "orderType": {
+        "label": "نوع الطلب",
+        "takeaway": "اصطحاب",
+        "dineIn": "طعام داخلي",
+        "delivery": "توصيل"
+    },
+    "table": "طاولة",
+    "selectTable": "اختر طاولة",
+    "noTablesAvailable": "لا توجد طاولات متاحة",
+    "categories": {
+        "all": "الكل"
+    },
+    "products": {
+        "search": "ابحث عن منتج...",
+        "searchHint": "(Ctrl+F)",
+        "noProducts": "لا توجد منتجات",
+        "tryDifferentSearch": "جرب تغيير الفئة أو البحث بكلمات مختلفة",
+        "available": "متوفر",
+        "outOfStock": "نفذ",
+        "lowStock": "مخزون منخفض"
+    },
+    "summary": {
+        "subtotal": "المجموع الفرعي",
+        "tax": "الضريبة",
+        "discount": "الخصم",
+        "total": "الإجمالي"
+    },
+    "modifiers": {
+        "title": "تخصيص المنتج",
+        "required": "مطلوب",
+        "optional": "اختياري",
+        "specialInstructions": "تعليمات خاصة",
+        "instructionsPlaceholder": "أي تعليمات خاصة للمطبخ..."
+    },
+    "paymentModal": {
+        "title": "الدفع",
+        "selectMethod": "اختر طريقة الدفع",
+        "cash": "نقداً",
+        "card": "بطاقة",
+        "mada": "مدى",
+        "applePay": "Apple Pay",
+        "stcPay": "STC Pay",
+        "splitPayment": "تقسيم الدفع",
+        "amountDue": "المبلغ المطلوب",
+        "amountPaid": "المبلغ المدفوع",
+        "change": "الباقي",
+        "complete": "إتمام الدفع"
+    },
+    "receipt": {
+        "title": "الفاتورة",
+        "orderNumber": "رقم الطلب",
+        "date": "التاريخ",
+        "cashier": "الكاشير",
+        "thankYou": "شكراً لزيارتكم",
+        "printReceipt": "طباعة الفاتورة",
+        "emailReceipt": "إرسال بالبريد"
+    },
+    "holdOrder": {
+        "title": "تعليق الطلب",
+        "confirm": "هل تريد تعليق هذا الطلب؟",
+        "success": "تم تعليق الطلب بنجاح"
+    },
+    "retrieveOrder": {
+        "title": "الطلبات المعلقة",
+        "noOrders": "لا توجد طلبات معلقة",
+        "retrieve": "استعادة",
+        "delete": "حذف"
+    },
+    "discountModal": {
+        "title": "تطبيق خصم",
+        "percentage": "نسبة مئوية",
+        "fixed": "مبلغ ثابت",
+        "reason": "سبب الخصم",
+        "apply": "تطبيق الخصم"
+    },
+    "customerModal": {
+        "title": "اختيار العميل",
+        "search": "ابحث عن عميل...",
+        "addNew": "إضافة عميل جديد",
+        "noCustomers": "لا يوجد عملاء",
+        "selected": "العميل المحدد"
+    },
+    "actions": {
+        "payment": "دفع",
+        "discount": "خصم",
+        "hold": "معلق",
+        "favorites": "المفضلة",
+        "history": "سجل المعاملات",
+        "print": "طباعة",
+        "return": "استرجاع",
+        "cart": "السلة"
+    },
+    "feedback": {
+        "productAdded": "تمت إضافة {{name}} إلى السلة",
+        "productRemoved": "تم إزالة المنتج",
+        "cartCleared": "تم تفريغ السلة",
+        "orderHeld": "تم تعليق الطلب",
+        "orderRetrieved": "تم استعادة الطلب #{{number}}",
+        "paymentComplete": "تمت العملية بنجاح",
+        "discountApplied": "تم تطبيق خصم {{name}}",
+        "productUnavailable": "المنتج غير متوفر حالياً"
+    }
+}
