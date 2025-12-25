@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Plus, Package, Sparkles, TrendingUp, Star } from 'lucide-react';
+import { Plus, Package, Sparkles, TrendingUp, Star, Settings2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/decimal';
 import { Badge } from '../ui/Badge';
 import { useSettingsStore } from '@/stores/settings.store';
+import type { ProductInfo } from '@/stores/cart.store';
 
 export interface ProductCardProps {
     /** Product ID */
@@ -25,15 +26,23 @@ export interface ProductCardProps {
     lowStockThreshold?: number;
     /** Badge type for special products */
     badgeType?: 'new' | 'popular' | 'bestseller' | null;
-    /** Callback when product is clicked/added */
+    /** Whether product has required modifiers */
+    hasRequiredModifiers?: boolean;
+    /** Number of modifier groups */
+    modifierGroupCount?: number;
+    /** Full product info for modifier modal */
+    product?: ProductInfo;
+    /** Callback when product is clicked/added (simple add) */
     onAdd: (id: string) => void;
+    /** Callback when product needs customization (has modifiers) */
+    onCustomize?: (product: ProductInfo) => void;
     /** Whether the card is in loading state */
     isLoading?: boolean;
 }
 
 /**
  * Premium Product Card for POS
- * Features: 3D tilt effect, animated glow border, image shimmer, badge system
+ * Features: 3D tilt effect, animated glow border, image shimmer, badge system, modifier support
  */
 export function ProductCard({
     id,
@@ -45,7 +54,11 @@ export function ProductCard({
     stock,
     lowStockThreshold = 5,
     badgeType,
+    hasRequiredModifiers = false,
+    modifierGroupCount = 0,
+    product,
     onAdd,
+    onCustomize,
     isLoading = false,
 }: ProductCardProps) {
     const { language, theme } = useSettingsStore();
@@ -54,11 +67,22 @@ export function ProductCard({
 
     const displayName = language === 'ar' && nameAr ? nameAr : name;
     const isLowStock = stock !== undefined && stock > 0 && stock <= lowStockThreshold;
-    const isOutOfStock = stock !== undefined && stock <= 0;
-    const isDisabled = !available || isOutOfStock || isLoading;
+    // Out of stock: either explicitly unavailable OR (tracking stock AND stock is 0 or less)
+    const isOutOfStock = !available || (stock !== undefined && stock <= 0);
+    const isDisabled = !available || isLoading;
+
+    // Determine if this product needs customization
+    const needsCustomization = hasRequiredModifiers && onCustomize && product;
+    const hasModifiers = modifierGroupCount > 0;
 
     const handleClick = () => {
-        if (!isDisabled) {
+        if (isDisabled) return;
+
+        if (needsCustomization) {
+            // Open modifier modal
+            onCustomize(product);
+        } else {
+            // Direct add to cart
             onAdd(id);
         }
     };
@@ -200,14 +224,27 @@ export function ProductCard({
                             transition={{ type: 'spring', stiffness: 400, damping: 15 }}
                             className={cn(
                                 'w-14 h-14 rounded-full flex items-center justify-center',
-                                'bg-gradient-to-br from-cyan-400 to-cyan-500 text-white',
-                                'shadow-lg shadow-cyan-500/50',
-                                'data-[theme=luxury]:from-amber-400 data-[theme=luxury]:to-amber-500',
-                                'data-[theme=luxury]:shadow-amber-500/50',
+                                needsCustomization ? cn(
+                                    // Customization button (has modifiers)
+                                    'bg-gradient-to-br from-violet-400 to-violet-500 text-white',
+                                    'shadow-lg shadow-violet-500/50',
+                                    'data-[theme=luxury]:from-amber-400 data-[theme=luxury]:to-amber-500',
+                                    'data-[theme=luxury]:shadow-amber-500/50',
+                                ) : cn(
+                                    // Simple add button
+                                    'bg-gradient-to-br from-cyan-400 to-cyan-500 text-white',
+                                    'shadow-lg shadow-cyan-500/50',
+                                    'data-[theme=luxury]:from-amber-400 data-[theme=luxury]:to-amber-500',
+                                    'data-[theme=luxury]:shadow-amber-500/50',
+                                ),
                             )}
                             data-theme={theme}
                         >
-                            <Plus className="w-7 h-7" strokeWidth={2.5} />
+                            {needsCustomization ? (
+                                <Settings2 className="w-6 h-6" strokeWidth={2} />
+                            ) : (
+                                <Plus className="w-7 h-7" strokeWidth={2.5} />
+                            )}
                         </motion.div>
                     </motion.div>
                 )}
@@ -233,6 +270,22 @@ export function ProductCard({
                     </motion.div>
                 )}
 
+                {/* Modifiers badge */}
+                {hasModifiers && !needsCustomization && (
+                    <div className="absolute bottom-3 end-3 z-10">
+                        <div data-theme={theme} className={cn(
+                            'flex items-center gap-1 px-2 py-1 rounded-full',
+                            'text-xs font-medium backdrop-blur-sm',
+                            'bg-slate-900/70 text-slate-300',
+                            'data-[theme=light]:bg-white/90 data-[theme=light]:text-slate-600',
+                            'data-[theme=light]:shadow-sm',
+                        )}>
+                            <Settings2 className="w-3 h-3" />
+                            <span>{language === 'ar' ? 'خيارات' : 'Options'}</span>
+                        </div>
+                    </div>
+                )}
+
                 {/* Stock badges */}
                 {isOutOfStock && (
                     <div className="absolute top-3 start-3">
@@ -251,15 +304,11 @@ export function ProductCard({
             </div>
 
             {/* Content */}
-            <div data-theme={theme} className="p-3.5">
+            <div className="p-3.5">
                 <h3 className={cn(
                     'text-sm font-bold truncate mb-1.5',
-                    // Dark theme
-                    'text-white',
-                    // Light theme - DARK TEXT for contrast
-                    'data-[theme=light]:text-slate-900',
-                    // Luxury theme
-                    'data-[theme=luxury]:text-white',
+                    // Use theme variable directly for reliable contrast
+                    theme === 'light' ? 'text-slate-900' : 'text-white',
                 )}>
                     {displayName}
                 </h3>
@@ -280,17 +329,30 @@ export function ProductCard({
                         {formatCurrency(price, 'SAR', language === 'ar' ? 'ar-SA' : 'en-SA')}
                     </motion.span>
 
-                    {stock !== undefined && !isOutOfStock && !isLowStock && (
+                    {stock !== undefined && !isOutOfStock && !isLowStock && !hasModifiers && (
                         <span data-theme={theme} className={cn(
-                            'text-xs font-medium px-2 py-0.5 rounded-full',
+                            'text-xs font-semibold px-2 py-0.5 rounded-full',
                             // Dark theme
                             'bg-slate-700/50 text-slate-400',
-                            // Light theme - visible badge
-                            'data-[theme=light]:bg-slate-100 data-[theme=light]:text-slate-500',
+                            // Light theme - HIGH CONTRAST: dark text on defined background
+                            'data-[theme=light]:bg-slate-200 data-[theme=light]:text-slate-700',
+                            'data-[theme=light]:border data-[theme=light]:border-slate-300',
                             // Luxury theme
                             'data-[theme=luxury]:bg-amber-500/10 data-[theme=luxury]:text-amber-500/70',
                         )}>
                             {stock}
+                        </span>
+                    )}
+
+                    {/* Customize indicator for products with required modifiers */}
+                    {needsCustomization && (
+                        <span data-theme={theme} className={cn(
+                            'text-xs font-medium px-2 py-0.5 rounded-full',
+                            'bg-violet-500/20 text-violet-400',
+                            'data-[theme=light]:bg-violet-100 data-[theme=light]:text-violet-600',
+                            'data-[theme=luxury]:bg-amber-500/20 data-[theme=luxury]:text-amber-400',
+                        )}>
+                            {language === 'ar' ? 'تخصيص' : 'Customize'}
                         </span>
                     )}
                 </div>

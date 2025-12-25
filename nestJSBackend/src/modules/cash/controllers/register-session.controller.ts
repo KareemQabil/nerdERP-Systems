@@ -8,7 +8,7 @@ import {
     PettyCashDto,
 } from '../dto/cash.dto';
 
-@Controller('api/v1/cash/sessions')
+@Controller('cash/sessions')
 @ApiTags('Cash Management')
 export class RegisterSessionController {
     constructor(private readonly sessionService: RegisterSessionService) { }

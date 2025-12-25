@@ -6,6 +6,7 @@ import { DecimalTransformer } from '../../../common/transformers/decimal.transfo
 export enum PaymentMethod {
     CASH = 'CASH',
     CARD = 'CARD',
+    MADA = 'MADA',
 }
 
 @Entity('payments')

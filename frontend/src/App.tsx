@@ -4,6 +4,17 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useSettingsStore } from '@/stores/settings.store';
 import { MainLayout } from '@/components/layout';
 import { LoadingSpinner } from '@/components/feedback';
+import { PlaceholderPage } from '@/components/shared';
+import {
+  ClipboardList,
+  Users,
+  Package,
+  ChefHat,
+  Truck,
+  Wallet,
+  LayoutGrid,
+  BarChart3,
+} from 'lucide-react';
 import '@/config/i18n.config';
 import './index.css';
 
@@ -11,8 +22,7 @@ import './index.css';
 import { lazy } from 'react';
 
 const POSPage = lazy(() => import('@/modules/pos/pages/POSPage'));
-// const OrdersPage = lazy(() => import('@/modules/orders/pages/OrdersPage'));
-// const SettingsPage = lazy(() => import('@/modules/settings/pages/SettingsPage'));
+const SettingsPage = lazy(() => import('@/modules/settings/pages/SettingsPage'));
 // const LoginPage = lazy(() => import('@/modules/auth/pages/LoginPage'));
 
 // Create a client
@@ -50,9 +60,47 @@ const router = createBrowserRouter([
           </Suspense>
         ),
       },
-      // Add more routes as components are built
-      // { path: 'orders', element: <OrdersPage /> },
-      // { path: 'settings', element: <SettingsPage /> },
+      {
+        path: 'settings',
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <SettingsPage />
+          </Suspense>
+        ),
+      },
+      // Placeholder pages for navigation items
+      {
+        path: 'orders',
+        element: <PlaceholderPage titleKey="nav.orders" descriptionKey="placeholder.ordersDesc" icon={ClipboardList} />,
+      },
+      {
+        path: 'customers',
+        element: <PlaceholderPage titleKey="nav.customers" descriptionKey="placeholder.customersDesc" icon={Users} />,
+      },
+      {
+        path: 'inventory',
+        element: <PlaceholderPage titleKey="nav.inventory" descriptionKey="placeholder.inventoryDesc" icon={Package} />,
+      },
+      {
+        path: 'kitchen',
+        element: <PlaceholderPage titleKey="nav.kitchen" descriptionKey="placeholder.kitchenDesc" icon={ChefHat} />,
+      },
+      {
+        path: 'delivery',
+        element: <PlaceholderPage titleKey="nav.delivery" descriptionKey="placeholder.deliveryDesc" icon={Truck} />,
+      },
+      {
+        path: 'cash',
+        element: <PlaceholderPage titleKey="nav.cash" descriptionKey="placeholder.cashDesc" icon={Wallet} />,
+      },
+      {
+        path: 'tables',
+        element: <PlaceholderPage titleKey="nav.seating" descriptionKey="placeholder.seatingDesc" icon={LayoutGrid} />,
+      },
+      {
+        path: 'reports',
+        element: <PlaceholderPage titleKey="nav.reports" descriptionKey="placeholder.reportsDesc" icon={BarChart3} />,
+      },
     ],
   },
   // { path: '/login', element: <LoginPage /> },

@@ -9,8 +9,8 @@ import { LoadingSpinner } from '../feedback/LoadingSpinner';
  * Main application layout with navigation sidebar
  * Handles the overall page structure for authenticated routes
  * 
- * IMPORTANT: This component sets data-theme attribute for child components
- * to enable Tailwind data-[theme=...] selectors to work correctly
+ * IMPORTANT: Navigation is ALWAYS on the RIGHT side regardless of RTL/LTR.
+ * RTL only affects text flow within content areas, not the main layout structure.
  */
 export function MainLayout() {
     // Get theme from settings store to propagate to components
@@ -33,11 +33,11 @@ export function MainLayout() {
                 'data-[theme=luxury]:before:bg-[radial-gradient(circle_at_50%_120%,rgba(245,158,11,0.15),transparent_50%)]',
             )}
         >
-            {/* Main Navigation Sidebar - passes theme via context */}
+            {/* Main Navigation Sidebar - ALWAYS on RIGHT regardless of RTL/LTR */}
             <MainNavigation />
 
-            {/* Main Content Area - offset for sidebar width (swapped to start) */}
-            <main className="ms-20 min-h-screen relative z-10">
+            {/* Main Content Area - always use right margin for nav on right */}
+            <main className="mr-20 min-h-screen relative z-10">
                 <Suspense fallback={<PageLoader />}>
                     <Outlet />
                 </Suspense>

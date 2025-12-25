@@ -1,4 +1,12 @@
-/** Standard API response wrapper */
+/**
+ * API Types
+ * Type definitions for API responses and requests
+ */
+
+// =============================================================================
+// STANDARD API RESPONSE
+// =============================================================================
+
 export interface ApiResponse<T> {
     success: boolean;
     data: T;
@@ -6,42 +14,46 @@ export interface ApiResponse<T> {
     timestamp: string;
 }
 
-/** Error response structure */
 export interface ApiError {
     success: false;
     error: {
-        code: string;        // e.g., 'SALES_003', 'INV_002'
-        messageKey: string;  // i18n key
-        message: string;     // Human-readable fallback
+        code: string;
+        messageKey: string;
+        message: string;
         details?: Record<string, unknown>;
     };
     timestamp: string;
     path: string;
 }
 
-/** Paginated response */
-export interface PaginatedResponse<T> {
-    data: T[];
-    meta: {
-        page: number;
-        limit: number;
-        total: number;
-        totalPages: number;
-    };
+// =============================================================================
+// PAGINATION
+// =============================================================================
+
+export interface PaginationMeta {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
 }
 
-/** Query params for paginated requests */
+export interface PaginatedResult<T> {
+    data: T[];
+    meta: PaginationMeta;
+}
+
 export interface PaginationParams {
     page?: number;
     limit?: number;
+    sort?: string;
+    order?: 'ASC' | 'DESC';
     search?: string;
-    sortBy?: string;
-    sortOrder?: 'ASC' | 'DESC';
 }
 
-/** Base entity fields (all entities have these) */
-export interface BaseEntity {
-    id: string;
-    createdAt: string;
-    updatedAt: string;
+// =============================================================================
+// QUERY PARAMS
+// =============================================================================
+
+export interface QueryParams extends PaginationParams {
+    [key: string]: string | number | boolean | undefined;
 }

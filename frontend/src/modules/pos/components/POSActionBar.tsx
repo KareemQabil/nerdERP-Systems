@@ -80,7 +80,8 @@ export function POSActionBar({
 
     return (
         <div data-theme={theme} className={cn(
-            'fixed bottom-0 start-20 end-0 z-30',
+            // Nav is on RIGHT, so action bar is left-0 right-20
+            'fixed bottom-0 left-0 right-20 z-30',
             'h-20 border-t',
             'flex items-center px-6',
             // Dark theme - solid background

@@ -50,8 +50,9 @@ export function MainNavigation() {
         <nav
             data-theme={theme}
             className={cn(
-                'fixed top-0 start-0 h-screen w-20 flex flex-col z-40',
-                'border-e transition-all duration-300',
+                // ALWAYS on RIGHT side - use fixed positioning with right-0
+                'fixed top-0 right-0 h-screen w-20 flex flex-col z-40',
+                'border-l transition-all duration-300',
                 // Dark theme - glass with subtle gradient
                 'backdrop-blur-2xl',
                 'bg-gradient-to-b from-slate-900/40 via-slate-900/60 to-slate-900/80',
