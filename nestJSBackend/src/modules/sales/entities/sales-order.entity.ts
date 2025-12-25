@@ -73,7 +73,7 @@ export class SalesOrder extends AbstractEntity {
     invoiceHash: string;
 
     @Column({ name: 'previous_hash', nullable: true })
-    previousHash: string;
+    previousHash: string | null;
 
     @Column({ name: 'zatca_uuid', nullable: true })
     zatcaUuid: string;
