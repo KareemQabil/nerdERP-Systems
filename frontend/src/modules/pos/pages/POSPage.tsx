@@ -32,6 +32,7 @@ import { ManagerPinModal } from '../components/ManagerPinModal';
 import { DemoModeIndicator } from '../components/DemoModeBanner';
 import { ProductGridSkeleton, CategoryPillsSkeleton } from '../components/skeletons';
 import { OpenSessionModal } from '../components/OpenSessionModal';
+import { CloseSessionModal } from '../components/CloseSessionModal';
 
 // Hooks & Mappers
 import { usePOSData } from '../hooks';
@@ -39,7 +40,7 @@ import { mapProductToProductInfo, createAllCategory, mapCategoryToPillProps } fr
 
 // Stores & Services
 import { useSession } from '@/stores/session.store';
-import { orderService, type CreateOrderDto } from '@/services/order.service';
+import { orderService, type OrderType } from '@/services/order.service';
 
 // Order types constant (these don't come from API)
 import { orderTypes } from '@/data/mock-pos-data';
@@ -58,13 +59,13 @@ export default function POSPage() {
 
     // Session Management
     const {
-        session,
         isOpen: isSessionOpen,
         sessionId,
         warehouseId,
         isLoading: isSessionLoading,
         error: sessionError,
         openSession,
+        closeSession,
         initializeSession,
     } = useSession();
 
@@ -97,7 +98,7 @@ export default function POSPage() {
     const [isOrderNotesModalOpen, setIsOrderNotesModalOpen] = useState(false);
     const [isManagerPinModalOpen, setIsManagerPinModalOpen] = useState(false);
     const [isOpenSessionModalOpen, setIsOpenSessionModalOpen] = useState(false);
-    const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
+    const [isCloseSessionModalOpen, setIsCloseSessionModalOpen] = useState(false);
 
     // Selected Items
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
@@ -137,6 +138,18 @@ export default function POSPage() {
     const selectedOrderTypeData = availableOrderTypes.find(t => t.id === selectedOrderType) || availableOrderTypes[0];
     const OrderTypeIcon = selectedOrderTypeData?.icon || orderTypes[0].icon;
 
+    // Helper: Map frontend order type to backend OrderType
+    const mapOrderType = (frontendType: string): OrderType => {
+        const mapping: Record<string, OrderType> = {
+            'dine-in': 'DINE_IN',
+            'takeout': 'TAKEAWAY', // Frontend uses 'takeout' but backend expects 'TAKEAWAY'
+            'delivery': 'DELIVERY',
+            'pickup': 'PICKUP',
+            'drive-thru': 'DRIVE_THRU',
+        };
+        return mapping[frontendType] || 'DINE_IN';
+    };
+
     // Handlers
     const handleAddProduct = (productId: string) => {
         const product = products.find((p) => p.id === productId);
@@ -156,20 +169,34 @@ export default function POSPage() {
         success(t('feedback.discountApplied', 'Discount applied!'));
     };
 
-    // Initialize session on mount - show modal if no session
+    // Track if initial session check is complete
+    const [hasInitialized, setHasInitialized] = useState(false);
+
+    // Initialize session on mount - check if active session exists
     useEffect(() => {
         const checkSession = async () => {
             await initializeSession();
+            setHasInitialized(true);
         };
         checkSession();
     }, [initializeSession]);
 
-    // Show session modal if no active session (after initialization)
+    // Show session modal ONLY if:
+    // 1. Initial check has completed
+    // 2. Not currently loading
+    // 3. No active session exists
+    // Close modal if session becomes active
     useEffect(() => {
-        if (!isSessionLoading && !isSessionOpen) {
-            setIsOpenSessionModalOpen(true);
+        if (hasInitialized && !isSessionLoading) {
+            if (isSessionOpen) {
+                // Session found - close the modal
+                setIsOpenSessionModalOpen(false);
+            } else {
+                // No session - show the modal
+                setIsOpenSessionModalOpen(true);
+            }
         }
-    }, [isSessionOpen, isSessionLoading]);
+    }, [hasInitialized, isSessionOpen, isSessionLoading]);
 
     // Handle checkout with API integration
     const handleCheckoutComplete = async (payments: PaymentEntry[]) => {
@@ -188,20 +215,19 @@ export default function POSPage() {
             return;
         }
 
-        setIsSubmittingOrder(true);
-
         try {
             // Build order DTO for backend
             const orderPayload = {
                 items: items.map(item => ({
                     productId: item.productId,
-                    quantity: parseFloat(item.quantity),
+                    quantity: item.quantity, // Already a string from cart
                     unitPrice: parseFloat(item.unitPrice),
                 })),
                 payments: payments.map(p => ({
                     method: p.method as 'CASH' | 'CARD' | 'MOBILE' | 'BANK_TRANSFER',
                     amount: parseFloat(p.amount),
                 })),
+                orderType: mapOrderType(selectedOrderType), // Use helper function
                 registerSessionId: sessionId,
                 warehouseId: warehouseId,
             };
@@ -221,19 +247,37 @@ export default function POSPage() {
         } catch (error) {
             console.error('[POS] Order submission failed:', error);
             showError(t('feedback.orderFailed', 'Failed to create order. Please try again.'));
-        } finally {
-            setIsSubmittingOrder(false);
         }
     };
 
     // Handle opening a new session
-    const handleOpenSession = async (openingBalance: number) => {
+    const handleOpenSession = async (openingBalance: number, userId?: string) => {
         try {
-            await openSession(openingBalance);
+            await openSession(openingBalance, userId);
             setIsOpenSessionModalOpen(false);
             success(t('session.opened', 'Session opened successfully'));
-        } catch (error) {
+        } catch (error: any) {
             console.error('[POS] Failed to open session:', error);
+
+            // Check if error is due to existing session
+            if (error?.response?.data?.error?.code === 'CASH_002') {
+                // Session already exists - just close the modal and refresh
+                setIsOpenSessionModalOpen(false);
+                await initializeSession(); // Refresh to get the existing session
+                showError(t('session.alreadyOpen', 'Session is already open. Using existing session.'));
+            }
+            // Error is already set in store for other errors
+        }
+    };
+
+    // Handle closing session
+    const handleCloseSession = async (closingBalance: number, notes?: string) => {
+        try {
+            await closeSession(closingBalance, notes);
+            setIsCloseSessionModalOpen(false);
+            success(t('session.closed', 'Session closed successfully'));
+        } catch (error) {
+            console.error('[POS] Failed to close session:', error);
             // Error is already set in store
         }
     };
@@ -470,6 +514,8 @@ export default function POSPage() {
                 onPrint={() => setIsOrderNotesModalOpen(true)}
                 onReturn={() => console.log('Return')}
                 onCart={() => setIsCartExpanded(!isCartExpanded)}
+                onCloseSession={() => setIsCloseSessionModalOpen(true)}
+                isSessionOpen={isSessionOpen}
             />
 
             {/* Modals */}
@@ -534,7 +580,7 @@ export default function POSPage() {
                 />
             )}
 
-            {/* Session Management Modal */}
+            {/* Session Management Modals */}
             <OpenSessionModal
                 isOpen={isOpenSessionModalOpen}
                 onClose={() => setIsOpenSessionModalOpen(false)}
@@ -542,6 +588,18 @@ export default function POSPage() {
                 isLoading={isSessionLoading}
                 error={sessionError}
             />
+
+            {/* Close Session Modal - shows actual vs expected balance */}
+            {isSessionOpen && (
+                <CloseSessionModal
+                    isOpen={isCloseSessionModalOpen}
+                    onClose={() => setIsCloseSessionModalOpen(false)}
+                    onConfirm={handleCloseSession}
+                    expectedBalance={0} // TODO: Calculate from session balance
+                    isLoading={isSessionLoading}
+                    error={sessionError}
+                />
+            )}
         </div>
     );
 }

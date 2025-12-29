@@ -145,6 +145,10 @@ export class SalesOrder extends AbstractEntity {
     @Column({ name: 'order_type', nullable: true })
     orderType: string; // 'DINE_IN', 'TAKEOUT', 'DELIVERY'
 
+    // Table association for dine-in orders
+    @Column({ name: 'table_id', type: 'uuid', nullable: true })
+    tableId: string;
+
     /**
      * Custom fields storage
      * Stores custom field values defined via CustomFieldDefinition

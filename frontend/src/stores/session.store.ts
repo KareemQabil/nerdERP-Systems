@@ -14,6 +14,9 @@ import { registerSessionService, type RegisterSession } from '@/services/session
 const DEFAULT_DEVICE_ID = '6a477384-24a6-427c-a961-44e1940cddc1'; // POS Terminal 1
 const DEFAULT_WAREHOUSE_ID = '001bfc5f-33b6-4135-ab0a-80ba0bfefcd5'; // Main Warehouse
 const DEFAULT_STORE_ID = '9c8370cd-44ee-4999-aecf-72c4b490ec2f'; // Default Store
+// ⚠️ CRITICAL: These user IDs must match backend FIXED_ADMIN_USER_ID and FIXED_CASHIER_USER_ID
+// const DEFAULT_ADMIN_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'; // Admin User (unused - for future use)
+const DEFAULT_CASHIER_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901'; // Cashier User
 
 // =============================================================================
 // TYPES
@@ -67,13 +70,23 @@ export const useSessionStore = create<SessionState>()(
                  */
                 initializeSession: async () => {
                     const { deviceId } = get();
+                    console.log('[SessionStore] Initializing session for device:', deviceId);
                     set({ isLoading: true, error: null });
 
                     try {
                         const session = await registerSessionService.getActiveSession(deviceId);
-                        set({ session, isLoading: false });
+                        console.log('[SessionStore] Got session from service:', session);
+                        console.log('[SessionStore] Session isOpen:', session?.isOpen);
+
+                        if (session && session.isOpen) {
+                            console.log('[SessionStore] ✅ Setting active session in store');
+                            set({ session, isLoading: false });
+                        } else {
+                            console.log('[SessionStore] ⚠️ No active session or session is closed');
+                            set({ session: null, isLoading: false });
+                        }
                     } catch (error) {
-                        console.error('[Session] Failed to initialize:', error);
+                        console.error('[SessionStore] ❌ Failed to initialize:', error);
                         set({
                             session: null,
                             isLoading: false,
@@ -93,7 +106,7 @@ export const useSessionStore = create<SessionState>()(
                         const session = await registerSessionService.openSession({
                             deviceId,
                             openingBalance: openingBalance.toString(), // Backend expects string
-                            userId: userId || 'default-cashier',
+                            userId: userId || DEFAULT_CASHIER_ID, // Use valid UUID instead of 'default-cashier'
                             storeId: DEFAULT_STORE_ID,
                         });
                         set({ session, isOpening: false });
@@ -121,7 +134,7 @@ export const useSessionStore = create<SessionState>()(
 
                     try {
                         await registerSessionService.closeSession(session.id, {
-                            closingBalance,
+                            actualBalance: closingBalance.toFixed(3), // Convert to string with 3 decimal places
                             notes,
                         });
                         set({ session: null, isClosing: false });

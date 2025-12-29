@@ -1,0 +1,62 @@
+/**
+ * POS Layout Styles
+ */
+.pos-layout {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    background: var(--bg-primary);
+}
+
+.pos-layout__content {
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    flex: 1;
+    overflow: hidden;
+}
+
+.pos-layout__products {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg-secondary);
+}
+
+.pos-layout__cart {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-primary);
+    border-left: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.pos-layout__actions {
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
+    display: flex;
+    gap: var(--spacing-sm);
+    justify-content: flex-end;
+}
+
+/* Responsive: Stack on smaller screens */
+@media (max-width: 1024px) {
+    .pos-layout__content {
+        grid-template-columns: 1fr;
+    }
+
+    .pos-layout__cart {
+        position: fixed;
+        right: 0;
+        top: 0;
+        bottom: 60px;
+        width: 380px;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        z-index: 100;
+    }
+
+    .pos-layout__cart.open {
+        transform: translateX(0);
+    }
+}

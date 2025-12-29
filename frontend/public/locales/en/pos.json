@@ -106,7 +106,8 @@
         "history": "History",
         "print": "Print",
         "return": "Return",
-        "cart": "Cart"
+        "cart": "Cart",
+        "closeSession": "Close Session"
     },
     "feedback": {
         "productAdded": "{{name}} added to cart",

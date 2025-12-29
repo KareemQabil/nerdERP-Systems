@@ -26,6 +26,7 @@ import * as bcrypt from 'bcrypt';
 const FIXED_STORE_ID = '9c8370cd-44ee-4999-aecf-72c4b490ec2f';
 const FIXED_DEVICE_ID = '6a477384-24a6-427c-a961-44e1940cddc1';
 const FIXED_WAREHOUSE_ID = '001bfc5f-33b6-4135-ab0a-80ba0bfefcd5';
+// ⚠️ CRITICAL: These user IDs must match frontend DEFAULT_ADMIN_ID and DEFAULT_CASHIER_ID
 const FIXED_ADMIN_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const FIXED_CASHIER_USER_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 
@@ -157,6 +158,7 @@ export class SeedComprehensiveService {
 
             // Admin user
             await this.userRepo.save(this.userRepo.create({
+                id: FIXED_ADMIN_USER_ID, // Fixed UUID for frontend compatibility
                 email: 'admin@nerdpos.com',
                 passwordHash: await bcrypt.hash('Admin123!', 10),
                 firstName: 'Admin',
@@ -168,6 +170,7 @@ export class SeedComprehensiveService {
 
             // Cashier user
             await this.userRepo.save(this.userRepo.create({
+                id: FIXED_CASHIER_USER_ID, // Fixed UUID for frontend compatibility
                 email: 'cashier@nerdpos.com',
                 passwordHash: await bcrypt.hash('Cashier123!', 10),
                 firstName: 'Ahmed',

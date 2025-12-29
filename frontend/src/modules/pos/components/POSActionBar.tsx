@@ -12,6 +12,7 @@ import {
     Sun,
     Moon,
     Sparkles,
+    LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -27,7 +28,9 @@ export interface POSActionBarProps {
     onPrint?: () => void;
     onReturn?: () => void;
     onCart?: () => void;
+    onCloseSession?: () => void;
     cartItemCount?: number;
+    isSessionOpen?: boolean;
 }
 
 interface ActionButton {
@@ -59,7 +62,9 @@ export function POSActionBar({
     onPrint,
     onReturn,
     onCart,
+    onCloseSession,
     cartItemCount = 0,
+    isSessionOpen = false,
 }: POSActionBarProps) {
     const { t } = useTranslation('pos');
     const { theme, setTheme, language } = useSettingsStore();
@@ -73,6 +78,10 @@ export function POSActionBar({
         { key: 'history', icon: RotateCcw, labelKey: 'actions.history', shortcut: 'F6', onClick: onHistory },
         { key: 'print', icon: Printer, labelKey: 'actions.print', shortcut: 'F7', onClick: onPrint },
         { key: 'return', icon: CornerUpLeft, labelKey: 'actions.return', shortcut: 'F8', onClick: onReturn },
+        // Close session only shown when session is open
+        ...(isSessionOpen && onCloseSession ? [
+            { key: 'closeSession', icon: LogOut, labelKey: 'actions.closeSession', onClick: onCloseSession }
+        ] : []),
     ];
 
     const currentTheme = themeOptions.find(t => t.id === theme) || themeOptions[0];

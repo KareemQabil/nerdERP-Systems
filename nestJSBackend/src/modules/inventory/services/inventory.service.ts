@@ -111,4 +111,109 @@ export class InventoryService {
 
         return moves;
     }
+
+    /**
+     * Get inventory summary grouped by product and warehouse
+     */
+    async getInventorySummary(warehouseId?: string): Promise<any[]> {
+        const qb = this.batchRepo
+            .createQueryBuilder('batch')
+            .leftJoinAndSelect('batch.product', 'product')
+            .leftJoinAndSelect('batch.warehouse', 'warehouse')
+            .leftJoinAndSelect('product.category', 'category')
+            .where('batch.qtyRemaining > 0');
+
+        if (warehouseId) {
+            qb.andWhere('warehouse.id = :warehouseId', { warehouseId });
+        }
+
+        const batches = await qb.getMany();
+
+        // Group by product + warehouse
+        const summaryMap = new Map<string, any>();
+
+        for (const batch of batches) {
+            const key = `${batch.product.id}-${batch.warehouse.id}`;
+
+            if (!summaryMap.has(key)) {
+                summaryMap.set(key, {
+                    productId: batch.product.id,
+                    productName: batch.product.name,
+                    productSku: batch.product.sku,
+                    categoryName: batch.product.category?.name || null,
+                    warehouseId: batch.warehouse.id,
+                    warehouseName: batch.warehouse.name,
+                    totalQty: 0,
+                    totalValue: 0,
+                    batchCount: 0,
+                    reorderLevel: (batch.product as any).behaviorConfig?.min_quantity || null,
+                    isLowStock: false,
+                    earliestExpiry: null,
+                });
+            }
+
+            const summary = summaryMap.get(key);
+            const qty = Number(batch.qtyRemaining);
+            const cost = Number(batch.costPerUnit);
+
+            summary.totalQty += qty;
+            summary.totalValue += qty * cost;
+            summary.batchCount += 1;
+
+            // Track earliest expiry
+            if (batch.expiryDate) {
+                if (!summary.earliestExpiry || new Date(batch.expiryDate) < new Date(summary.earliestExpiry)) {
+                    summary.earliestExpiry = batch.expiryDate;
+                }
+            }
+        }
+
+        // Calculate averages and check low stock
+        const results = Array.from(summaryMap.values()).map(item => {
+            item.avgCost = item.totalQty > 0 ? (item.totalValue / item.totalQty).toFixed(3) : '0.000';
+            item.totalQty = item.totalQty.toFixed(3);
+            item.totalValue = item.totalValue.toFixed(3);
+            item.isLowStock = item.reorderLevel && Number(item.totalQty) <= Number(item.reorderLevel);
+            return item;
+        });
+
+        return results;
+    }
+
+    /**
+     * Get all batches with optional filters
+     */
+    async getBatches(filters: {
+        warehouseId?: string;
+        productId?: string;
+        qualityStatus?: string;
+        expiringWithinDays?: number;
+    }): Promise<InventoryBatch[]> {
+        const qb = this.batchRepo
+            .createQueryBuilder('batch')
+            .leftJoinAndSelect('batch.product', 'product')
+            .leftJoinAndSelect('batch.warehouse', 'warehouse')
+            .where('batch.qtyRemaining > 0')
+            .orderBy('batch.receivedDate', 'ASC'); // FIFO order
+
+        if (filters.warehouseId) {
+            qb.andWhere('warehouse.id = :warehouseId', { warehouseId: filters.warehouseId });
+        }
+
+        if (filters.productId) {
+            qb.andWhere('product.id = :productId', { productId: filters.productId });
+        }
+
+        if (filters.qualityStatus) {
+            qb.andWhere('batch.qualityStatus = :qualityStatus', { qualityStatus: filters.qualityStatus });
+        }
+
+        if (filters.expiringWithinDays) {
+            const expiryDate = new Date();
+            expiryDate.setDate(expiryDate.getDate() + filters.expiringWithinDays);
+            qb.andWhere('batch.expiryDate IS NOT NULL AND batch.expiryDate <= :expiryDate', { expiryDate });
+        }
+
+        return qb.take(100).getMany();
+    }
 }

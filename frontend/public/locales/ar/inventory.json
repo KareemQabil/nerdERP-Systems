@@ -1,0 +1,194 @@
+{
+    "title": "إدارة المخزون",
+    "subtitle": "تتبع مستويات المخزون والدفعات والحركات",
+    "selectWarehouse": "اختر المستودع",
+    "tabs": {
+        "overview": "نظرة عامة",
+        "batches": "الدفعات",
+        "movements": "الحركات",
+        "alerts": "التنبيهات"
+    },
+    "actions": {
+        "receive": "استلام مخزون",
+        "adjust": "تعديل",
+        "newItem": "صنف جديد",
+        "addStock": "إضافة مخزون",
+        "deductStock": "خصم مخزون",
+        "transfer": "نقل",
+        "printLabel": "طباعة ملصق"
+    },
+    "summary": {
+        "totalProducts": "إجمالي المنتجات",
+        "totalValue": "إجمالي القيمة",
+        "lowStock": "مخزون منخفض",
+        "alerts": "تنبيهات نشطة"
+    },
+    "table": {
+        "product": "المنتج",
+        "sku": "رمز المنتج",
+        "quantity": "الكمية",
+        "avgCost": "متوسط التكلفة",
+        "value": "القيمة",
+        "status": "الحالة",
+        "actions": "الإجراءات",
+        "batch": "الدفعة",
+        "received": "تاريخ الاستلام",
+        "expiry": "تاريخ الانتهاء",
+        "quality": "الجودة",
+        "type": "النوع",
+        "reference": "المرجع",
+        "date": "التاريخ"
+    },
+    "status": {
+        "inStock": "متوفر",
+        "lowStock": "مخزون منخفض",
+        "outOfStock": "نفد المخزون",
+        "expiringSoon": "ينتهي قريباً",
+        "expired": "منتهي الصلاحية"
+    },
+    "quality": {
+        "good": "جيد",
+        "damaged": "تالف",
+        "expired": "منتهي",
+        "quarantine": "حجر",
+        "returned": "مرتجع"
+    },
+    "moveType": {
+        "in": "دخول",
+        "out": "خروج",
+        "adj": "تعديل"
+    },
+    "referenceType": {
+        "sale": "بيع",
+        "purchase": "أمر شراء",
+        "manual": "يدوي",
+        "waste": "هدر",
+        "recipe": "وصفة"
+    },
+    "search": {
+        "placeholder": "بحث عن المنتجات..."
+    },
+    "filter": "تصفية",
+    "empty": {
+        "products": "لا توجد منتجات",
+        "batches": "لا توجد دفعات",
+        "movements": "لا توجد حركات مخزون",
+        "alerts": "لا توجد تنبيهات نشطة"
+    },
+    "comingSoon": "قريباً...",
+    "itemMaster": {
+        "title": "إنشاء صنف جديد",
+        "types": {
+            "standard": "منتج قياسي",
+            "standardDesc": "شراء 1، بيع 1",
+            "manufactured": "مصنّع",
+            "manufacturedDesc": "حسب الوصفة",
+            "rawMaterial": "مادة خام",
+            "rawMaterialDesc": "مكوّن فقط",
+            "service": "خدمة",
+            "serviceDesc": "بدون مخزون"
+        },
+        "fields": {
+            "name": "الاسم",
+            "sku": "رمز المنتج",
+            "category": "الفئة",
+            "unit": "الوحدة",
+            "description": "الوصف",
+            "salePrice": "سعر البيع",
+            "costPrice": "سعر التكلفة",
+            "taxGroup": "مجموعة الضريبة",
+            "barcode": "الباركود",
+            "printerGroup": "مجموعة الطابعة",
+            "prepTime": "وقت التحضير"
+        },
+        "modifiers": {
+            "title": "المعدّلات",
+            "addGroup": "إضافة مجموعة معدّلات",
+            "inventoryImpact": "تأثير المخزون: المعدّلات ستخصم مخزون إضافي عند اختيارها."
+        },
+        "save": "حفظ الصنف"
+    },
+    "recipe": {
+        "title": "الوصفة / قائمة المواد",
+        "ingredients": "المكونات",
+        "searchIngredient": "بحث عن المواد الخام...",
+        "addIngredient": "إضافة مكوّن",
+        "noIngredients": "لم تتم إضافة مكونات بعد. انقر على \"إضافة مكوّن\" للبدء.",
+        "costBreakdown": "تفصيل التكلفة",
+        "ingredientCount": "المكونات",
+        "totalCost": "إجمالي التكلفة",
+        "marginAnalysis": "تحليل الهامش",
+        "salePrice": "سعر البيع",
+        "profit": "الربح",
+        "margin": "الهامش",
+        "lowMarginWarning": "تحذير: هامش منخفض. يُنصح بتعديل الأسعار.",
+        "negativeMaginWarning": "هامش سلبي! ستخسر أموالاً على هذا الصنف.",
+        "saveRecipe": "حفظ الوصفة"
+    },
+    "purchase": {
+        "title": "استلام مخزون - فاتورة شراء",
+        "invoiceDetails": "تفاصيل الفاتورة",
+        "supplier": "المورد",
+        "invoiceNumber": "رقم الفاتورة",
+        "invoiceDate": "تاريخ الفاتورة",
+        "warehouse": "المستودع",
+        "items": "الأصناف",
+        "searchProduct": "بحث عن منتج...",
+        "scanBarcode": "مسح الباركود",
+        "addItem": "إضافة صنف",
+        "costingPreview": "معاينة التكلفة",
+        "costImpact": "تأثير التكلفة",
+        "currentStock": "المخزون الحالي",
+        "newStock": "المخزون الجديد",
+        "totalUnits": "إجمالي الوحدات",
+        "totalValue": "إجمالي القيمة",
+        "newAvgCost": "متوسط التكلفة الجديد",
+        "invoiceSummary": "ملخص الفاتورة",
+        "subtotal": "المجموع الفرعي",
+        "vat": "ضريبة القيمة المضافة",
+        "total": "الإجمالي",
+        "uponPosting": "عند ترحيل هذه الفاتورة:",
+        "batchesCreated": "إنشاء دفعات المخزون بالتكاليف الجديدة",
+        "costsRecalculated": "إعادة حساب متوسط التكاليف المرجح",
+        "movesRecorded": "تسجيل حركات المخزون (IN, PURCHASE_ORDER)",
+        "glUpdated": "المحاسبة: تحديث أصول المخزون في دفتر الأستاذ",
+        "posNotified": "WebSocket: إخطار جميع أجهزة نقاط البيع",
+        "stockAvailable": "توفر الأصناف النافدة فوراً",
+        "confirm": "تأكيد واستلام"
+    },
+    "adjustment": {
+        "title": "تعديل المخزون",
+        "warehouse": "المستودع",
+        "inventoryCount": "جرد المخزون",
+        "searchProduct": "بحث عن منتج...",
+        "scanBarcode": "مسح الباركود",
+        "systemQty": "النظام",
+        "actualQty": "الفعلي",
+        "diff": "الفرق",
+        "reason": "السبب",
+        "reasons": {
+            "damaged": "تالف",
+            "theft": "سرقة",
+            "expired": "منتهي الصلاحية",
+            "staffMeal": "وجبة موظف",
+            "countError": "خطأ عد",
+            "spillage": "انسكاب"
+        },
+        "wasteAlerts": "تنبيهات الهدر",
+        "highWaste": "تم اكتشاف هدر مرتفع",
+        "recommendations": "التوصيات",
+        "reduceOrder": "تقليل كمية الطلب بنسبة 20%",
+        "checkStorage": "فحص درجة حرارة التخزين",
+        "reviewFifo": "مراجعة الالتزام بـ FIFO",
+        "financialImpact": "التأثير المالي",
+        "adjustmentSummary": "ملخص التعديل",
+        "totalAdjusted": "إجمالي الأصناف المعدّلة",
+        "quantityVariance": "تباين الكمية",
+        "valueImpact": "تأثير القيمة",
+        "totalLoss": "إجمالي الخسارة",
+        "postTo": "سيتم الترحيل إلى: حساب \"الخسائر والهدر\" في قائمة الأرباح والخسائر",
+        "ownerNotification": "إشعار المالك: الخسارة تجاوزت الحد المسموح",
+        "notes": "ملاحظات",
+        "postAdjustment": "ترحيل التعديل"
+    }
+}

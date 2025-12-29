@@ -8,7 +8,6 @@ import { PlaceholderPage } from '@/components/shared';
 import {
   ClipboardList,
   Users,
-  Package,
   ChefHat,
   Truck,
   Wallet,
@@ -23,6 +22,7 @@ import { lazy } from 'react';
 
 const POSPage = lazy(() => import('@/modules/pos/pages/POSPage'));
 const SettingsPage = lazy(() => import('@/modules/settings/pages/SettingsPage'));
+const InventoryPage = lazy(() => import('@/modules/inventory/pages/InventoryPage'));
 // const LoginPage = lazy(() => import('@/modules/auth/pages/LoginPage'));
 
 // Create a client
@@ -79,7 +79,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'inventory',
-        element: <PlaceholderPage titleKey="nav.inventory" descriptionKey="placeholder.inventoryDesc" icon={Package} />,
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <InventoryPage />
+          </Suspense>
+        ),
       },
       {
         path: 'kitchen',

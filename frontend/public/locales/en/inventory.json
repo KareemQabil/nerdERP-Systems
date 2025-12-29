@@ -1,0 +1,194 @@
+{
+    "title": "Inventory Management",
+    "subtitle": "Track stock levels, batches, and movements",
+    "selectWarehouse": "Select Warehouse",
+    "tabs": {
+        "overview": "Overview",
+        "batches": "Batches",
+        "movements": "Movements",
+        "alerts": "Alerts"
+    },
+    "actions": {
+        "receive": "Receive Stock",
+        "adjust": "Adjust",
+        "newItem": "New Item",
+        "addStock": "Add Stock",
+        "deductStock": "Deduct Stock",
+        "transfer": "Transfer",
+        "printLabel": "Print Label"
+    },
+    "summary": {
+        "totalProducts": "Total Products",
+        "totalValue": "Total Value",
+        "lowStock": "Low Stock",
+        "alerts": "Active Alerts"
+    },
+    "table": {
+        "product": "Product",
+        "sku": "SKU",
+        "quantity": "Qty",
+        "avgCost": "Avg Cost",
+        "value": "Value",
+        "status": "Status",
+        "actions": "Actions",
+        "batch": "Batch",
+        "received": "Received",
+        "expiry": "Expiry",
+        "quality": "Quality",
+        "type": "Type",
+        "reference": "Reference",
+        "date": "Date"
+    },
+    "status": {
+        "inStock": "In Stock",
+        "lowStock": "Low Stock",
+        "outOfStock": "Out of Stock",
+        "expiringSoon": "Expiring Soon",
+        "expired": "Expired"
+    },
+    "quality": {
+        "good": "Good",
+        "damaged": "Damaged",
+        "expired": "Expired",
+        "quarantine": "Quarantine",
+        "returned": "Returned"
+    },
+    "moveType": {
+        "in": "Stock In",
+        "out": "Stock Out",
+        "adj": "Adjustment"
+    },
+    "referenceType": {
+        "sale": "Sale",
+        "purchase": "Purchase Order",
+        "manual": "Manual",
+        "waste": "Waste",
+        "recipe": "Recipe"
+    },
+    "search": {
+        "placeholder": "Search products..."
+    },
+    "filter": "Filter",
+    "empty": {
+        "products": "No products found",
+        "batches": "No batches found",
+        "movements": "No stock movements found",
+        "alerts": "No active alerts"
+    },
+    "comingSoon": "Coming soon...",
+    "itemMaster": {
+        "title": "Create New Item",
+        "types": {
+            "standard": "Standard Product",
+            "standardDesc": "Buy 1, Sell 1",
+            "manufactured": "Manufactured",
+            "manufacturedDesc": "Recipe-based",
+            "rawMaterial": "Raw Material",
+            "rawMaterialDesc": "Ingredient only",
+            "service": "Service",
+            "serviceDesc": "No stock"
+        },
+        "fields": {
+            "name": "Name",
+            "sku": "SKU",
+            "category": "Category",
+            "unit": "Unit",
+            "description": "Description",
+            "salePrice": "Sale Price",
+            "costPrice": "Cost Price",
+            "taxGroup": "Tax Group",
+            "barcode": "Barcode",
+            "printerGroup": "Printer Group",
+            "prepTime": "Prep Time"
+        },
+        "modifiers": {
+            "title": "Modifiers",
+            "addGroup": "Add Modifier Group",
+            "inventoryImpact": "Inventory Impact: Modifiers will deduct additional inventory when selected."
+        },
+        "save": "Save Item"
+    },
+    "recipe": {
+        "title": "Recipe / Bill of Materials",
+        "ingredients": "Ingredients",
+        "searchIngredient": "Search raw materials...",
+        "addIngredient": "Add Ingredient",
+        "noIngredients": "No ingredients added yet. Click \"Add Ingredient\" to start.",
+        "costBreakdown": "Cost Breakdown",
+        "ingredientCount": "Ingredients",
+        "totalCost": "Total Cost",
+        "marginAnalysis": "Margin Analysis",
+        "salePrice": "Sale Price",
+        "profit": "Profit",
+        "margin": "Margin",
+        "lowMarginWarning": "Low margin warning. Consider adjusting pricing.",
+        "negativeMaginWarning": "Negative margin! You will lose money on this item.",
+        "saveRecipe": "Save Recipe"
+    },
+    "purchase": {
+        "title": "Receive Stock - Purchase Invoice",
+        "invoiceDetails": "Invoice Details",
+        "supplier": "Supplier",
+        "invoiceNumber": "Invoice #",
+        "invoiceDate": "Invoice Date",
+        "warehouse": "Warehouse",
+        "items": "Items",
+        "searchProduct": "Search product...",
+        "scanBarcode": "Scan Barcode",
+        "addItem": "Add Item",
+        "costingPreview": "Costing Preview",
+        "costImpact": "Cost Impact",
+        "currentStock": "Current Stock",
+        "newStock": "New Stock",
+        "totalUnits": "Total Units",
+        "totalValue": "Total Value",
+        "newAvgCost": "New Avg Cost",
+        "invoiceSummary": "Invoice Summary",
+        "subtotal": "Subtotal",
+        "vat": "VAT",
+        "total": "Total",
+        "uponPosting": "Upon posting this invoice:",
+        "batchesCreated": "Inventory batches created with new costs",
+        "costsRecalculated": "Weighted average costs recalculated",
+        "movesRecorded": "Stock moves recorded (IN, PURCHASE_ORDER)",
+        "glUpdated": "Accounting: Inventory Asset updated in GL",
+        "posNotified": "WebSocket: All POS terminals notified",
+        "stockAvailable": "Out-of-stock items become available instantly",
+        "confirm": "Confirm & Receive"
+    },
+    "adjustment": {
+        "title": "Stock Adjustment",
+        "warehouse": "Warehouse",
+        "inventoryCount": "Inventory Count",
+        "searchProduct": "Search product...",
+        "scanBarcode": "Scan Barcode",
+        "systemQty": "System",
+        "actualQty": "Actual",
+        "diff": "Diff",
+        "reason": "Reason",
+        "reasons": {
+            "damaged": "Damaged",
+            "theft": "Theft",
+            "expired": "Expired",
+            "staffMeal": "Staff Meal",
+            "countError": "Count Error",
+            "spillage": "Spillage"
+        },
+        "wasteAlerts": "Waste Alerts",
+        "highWaste": "High Waste Detected",
+        "recommendations": "Recommendations",
+        "reduceOrder": "Reduce order quantity by 20%",
+        "checkStorage": "Check storage temperature",
+        "reviewFifo": "Review FIFO compliance",
+        "financialImpact": "Financial Impact",
+        "adjustmentSummary": "Adjustment Summary",
+        "totalAdjusted": "Total Items Adjusted",
+        "quantityVariance": "Quantity Variance",
+        "valueImpact": "Value Impact",
+        "totalLoss": "Total Loss",
+        "postTo": "This will be posted to: \"Loss & Waste\" P&L Account",
+        "ownerNotification": "Owner Notification: Loss exceeds threshold",
+        "notes": "Notes",
+        "postAdjustment": "Post Adjustment"
+    }
+}

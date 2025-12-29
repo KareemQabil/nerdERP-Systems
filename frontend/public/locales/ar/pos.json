@@ -106,7 +106,8 @@
         "history": "سجل المعاملات",
         "print": "طباعة",
         "return": "استرجاع",
-        "cart": "السلة"
+        "cart": "السلة",
+        "closeSession": "إغلاق الوردية"
     },
     "feedback": {
         "productAdded": "تمت إضافة {{name}} إلى السلة",

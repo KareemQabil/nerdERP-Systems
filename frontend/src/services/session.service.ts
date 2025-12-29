@@ -33,8 +33,7 @@ export interface CreateSessionDto {
 }
 
 export interface CloseSessionDto {
-    closingBalance: number;
-    closedBy?: string;
+    actualBalance: string; // Backend expects decimal as string, not closingBalance
     notes?: string;
 }
 
@@ -81,11 +80,30 @@ class RegisterSessionService {
      */
     async getActiveSession(deviceId: string): Promise<RegisterSession | null> {
         try {
+            console.log('[SessionService] Checking for active session, deviceId:', deviceId);
             const response = await apiClient.get<ApiResponse<RegisterSession>>(
                 `${this.endpoint}/active/${deviceId}`
             );
-            return response.data.data || null;
-        } catch {
+            console.log('[SessionService] Full response:', response);
+            console.log('[SessionService] response.data:', response.data);
+
+            // Handle double-nesting: axios returns response.data, which contains the API wrapper
+            // API wrapper has {success, data, timestamp}, so we need response.data.data.data
+            const apiWrapper = response.data as any;
+            const session = apiWrapper.data?.data || apiWrapper.data || null;
+
+            console.log('[SessionService] Extracted session:', session);
+            console.log('[SessionService] Session keys:', session ? Object.keys(session) : 'null');
+
+            if (session && typeof session === 'object' && 'id' in session) {
+                console.log('[SessionService] ✅ Found active session, ID:', session.id, 'isOpen:', session.isOpen);
+                return session;
+            } else {
+                console.log('[SessionService] ⚠️ No valid session found');
+                return null;
+            }
+        } catch (error: any) {
+            console.error('[SessionService] ❌ Error getting active session:', error?.response?.data || error.message);
             return null;
         }
     }
