@@ -18,6 +18,6 @@ import { DeviceController } from './controllers/device.controller';
     ],
     controllers: [UserController, RoleController, AuthController, DeviceController],
     providers: [UserService, DeviceService],
-    exports: [UserService, DeviceService],
+    exports: [UserService, DeviceService, TypeOrmModule],
 })
 export class UsersModule { }

@@ -10,15 +10,21 @@ import { OrderStateHistory } from './order-state-history.entity';
 import { Refund } from './refund.entity';
 
 export enum OrderStatus {
-    PENDING = 'PENDING',
-    PAID = 'PAID',
-    VOID = 'VOID',
+    DRAFT = 'DRAFT',              // Order being built
+    FIRED_TO_KITCHEN = 'FIRED_TO_KITCHEN', // Sent to kitchen
+    PREPARING = 'PREPARING',       // Kitchen working on it
+    READY = 'READY',               // Ready for service
+    PENDING = 'PENDING',           // Legacy (for backward compatibility)
+    PAID = 'PAID',                 // Payment complete
+    COMPLETED = 'COMPLETED',       // Order closed
+    VOID = 'VOID',                 // Cancelled
 }
 
 export enum PaymentStatus {
     PENDING = 'PENDING',
     PARTIAL = 'PARTIAL',
     PAID = 'PAID',
+    REFUNDED = 'REFUNDED',
 }
 
 @Entity('sales_orders')
@@ -148,6 +154,32 @@ export class SalesOrder extends AbstractEntity {
     // Table association for dine-in orders
     @Column({ name: 'table_id', type: 'uuid', nullable: true })
     tableId: string;
+
+    // =============================================================================
+    // NEW: Void Tracking Columns
+    // =============================================================================
+
+    @Column({ name: 'voided_at', type: 'timestamp with time zone', nullable: true })
+    voidedAt: Date;
+
+    @Column({ name: 'void_reason', nullable: true })
+    voidReason: string;
+
+    @Column({ name: 'voided_by_user_id', nullable: true })
+    voidedByUserId: string;
+
+    @Column({ name: 'void_authorized_by_user_id', nullable: true })
+    voidAuthorizedByUserId: string;
+
+    // =============================================================================
+    // NEW: Order Lifecycle Timestamps
+    // =============================================================================
+
+    @Column({ name: 'fired_to_kitchen_at', type: 'timestamp with time zone', nullable: true })
+    firedToKitchenAt: Date;
+
+    @Column({ name: 'completed_at', type: 'timestamp with time zone', nullable: true })
+    completedAt: Date;
 
     /**
      * Custom fields storage

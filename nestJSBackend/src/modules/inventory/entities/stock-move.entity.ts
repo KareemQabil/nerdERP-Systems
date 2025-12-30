@@ -9,6 +9,8 @@ export enum StockMoveType {
     IN = 'IN',
     OUT = 'OUT',
     ADJ = 'ADJ',
+    RESERVATION = 'RESERVATION', // Temporary stock hold for POS checkout
+    RETURN = 'RETURN', // Stock returned from void operations
 }
 
 export enum StockReferenceType {
@@ -17,6 +19,7 @@ export enum StockReferenceType {
     MANUAL = 'MANUAL',
     WASTE = 'WASTE',
     RECIPE = 'RECIPE',
+    VOID = 'VOID', // For void operations
 }
 
 @Entity('stock_moves')
@@ -67,4 +70,12 @@ export class StockMove extends AbstractEntity {
         nullable: true,
     })
     costPerUnit: number;
+
+    /**
+     * Metadata for additional move information
+     * Used for reservations (sessionId, orderId, expiresAt, status)
+     * and other special tracking
+     */
+    @Column({ type: 'jsonb', nullable: true })
+    metadata?: Record<string, any>;
 }

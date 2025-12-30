@@ -28,4 +28,8 @@ export class Payment extends AbstractEntity {
         enum: PaymentMethod,
     })
     method: PaymentMethod;
+
+    @Column({ nullable: true })
+    reference: string; // Transaction ID, terminal reference, etc.
 }
+

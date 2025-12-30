@@ -20,6 +20,7 @@ import {
     TrendingUp,
     ChevronDown,
     RefreshCw,
+    Layers,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useInventoryStore } from '@/stores/inventory.store';
@@ -31,12 +32,13 @@ import { formatCurrency } from '@/lib/decimal';
 import { ItemMasterModal } from '../components/modals/ItemMasterModal';
 import { PurchaseInvoiceModal } from '../components/modals/PurchaseInvoiceModal';
 import { StockAdjustmentModal } from '../components/modals/StockAdjustmentModal';
+import { productService, type Product } from '@/services/product.service';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-type TabType = 'overview' | 'batches' | 'movements' | 'alerts';
+type TabType = 'overview' | 'products' | 'batches' | 'movements' | 'alerts';
 
 interface Tab {
     id: TabType;
@@ -82,9 +84,15 @@ export function InventoryPage() {
     const [isWarehouseDropdownOpen, setIsWarehouseDropdownOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Products tab state
+    const [products, setProducts] = useState<Product[]>([]);
+    const [isLoadingProducts, setIsLoadingProducts] = useState(false);
+    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
     // Tabs configuration
     const tabs: Tab[] = [
         { id: 'overview', labelKey: 'tabs.overview', icon: Package },
+        { id: 'products', labelKey: 'tabs.products', icon: Layers },
         { id: 'batches', labelKey: 'tabs.batches', icon: Boxes },
         { id: 'movements', labelKey: 'tabs.movements', icon: History },
         { id: 'alerts', labelKey: 'tabs.alerts', icon: AlertTriangle, count: (alerts || []).filter(a => !a.isAcknowledged).length },
@@ -100,6 +108,25 @@ export function InventoryPage() {
             fetchInventorySummary();
         }
     }, [selectedWarehouseId, fetchInventorySummary]);
+
+    // Fetch products when products tab is selected
+    useEffect(() => {
+        const loadProducts = async () => {
+            if (activeTab === 'products') {
+                setIsLoadingProducts(true);
+                try {
+                    // Use getAllProducts for inventory (no isActive filter)
+                    const productsData = await productService.getAllProducts();
+                    setProducts(productsData || []);
+                } catch (error) {
+                    console.error('Failed to fetch products:', error);
+                } finally {
+                    setIsLoadingProducts(false);
+                }
+            }
+        };
+        loadProducts();
+    }, [activeTab]);
 
     // Ensure arrays are valid (API could return null/undefined on error)
     const safeInventorySummary = Array.isArray(inventorySummary) ? inventorySummary : [];
@@ -371,6 +398,20 @@ export function InventoryPage() {
                             language={language}
                         />
                     )}
+                    {activeTab === 'products' && (
+                        <ProductsTab
+                            key="products"
+                            data={products}
+                            isLoading={isLoadingProducts}
+                            theme={theme}
+                            isRTL={isRTL}
+                            onAddStock={(productId) => {
+                                setSelectedProductId(productId);
+                                setIsPurchaseInvoiceOpen(true);
+                            }}
+                            searchQuery={searchQuery}
+                        />
+                    )}
                     {activeTab === 'batches' && (
                         <BatchesTab
                             key="batches"
@@ -404,7 +445,13 @@ export function InventoryPage() {
             {/* Modals */}
             <ItemMasterModal
                 isOpen={isItemMasterOpen}
-                onClose={() => setIsItemMasterOpen(false)}
+                onClose={() => {
+                    setIsItemMasterOpen(false);
+                    // Refresh products list after modal closes (in case a product was created)
+                    if (activeTab === 'products') {
+                        productService.getAllProducts().then(setProducts).catch(console.error);
+                    }
+                }}
             />
             <PurchaseInvoiceModal
                 isOpen={isPurchaseInvoiceOpen}
@@ -588,6 +635,115 @@ function OverviewTab({ data, isLoading, theme, language }: TabProps<InventorySum
                                     <button className="p-1.5 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors">
                                         <TrendingDown className="w-4 h-4" />
                                     </button>
+                                </div>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </motion.div>
+    );
+}
+
+interface ProductsTabProps {
+    data: Product[];
+    isLoading: boolean;
+    theme: string;
+    isRTL: boolean;
+    onAddStock: (productId: string) => void;
+    searchQuery: string;
+}
+
+function ProductsTab({ data, isLoading, theme, isRTL, onAddStock, searchQuery }: ProductsTabProps) {
+    const { t } = useTranslation('inventory');
+
+    if (isLoading) return <LoadingState />;
+
+    // Filter products based on search
+    const filteredProducts = data.filter(product =>
+        product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (product.sku && product.sku.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
+    if (filteredProducts.length === 0) {
+        return <EmptyState message={searchQuery ? t('empty.noResults', 'No products match your search') : t('empty.products', 'No products found. Create your first product!')} />;
+    }
+
+    return (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+            <table className="w-full">
+                <thead data-theme={theme} className="data-[theme=dark]:bg-white/5 data-[theme=light]:bg-slate-50">
+                    <tr className="text-left text-sm text-gray-400">
+                        <th className="p-4 font-medium">{t('table.productName', 'Product Name')}</th>
+                        <th className="p-4 font-medium">{t('table.sku', 'SKU')}</th>
+                        <th className="p-4 font-medium">{t('table.category', 'Category')}</th>
+                        <th className="p-4 font-medium text-right">{t('table.salePrice', 'Sale Price')}</th>
+                        <th className="p-4 font-medium text-center">{t('table.trackInventory', 'Track Inventory')}</th>
+                        <th className="p-4 font-medium text-center">{t('table.actions', 'Actions')}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {filteredProducts.map((product, index) => (
+                        <tr
+                            key={product.id}
+                            data-theme={theme}
+                            className={cn(
+                                'transition-colors',
+                                'data-[theme=dark]:hover:bg-white/5',
+                                'data-[theme=light]:hover:bg-slate-50',
+                                index % 2 === 1 && 'data-[theme=dark]:bg-white/2 data-[theme=light]:bg-slate-25'
+                            )}
+                        >
+                            <td className="p-4">
+                                <div className="flex items-center gap-3">
+                                    {product.imageUrl ? (
+                                        <img src={product.imageUrl} alt={product.name} className="w-10 h-10 rounded-lg object-cover" />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
+                                            <Package className="w-5 h-5 text-emerald-400" />
+                                        </div>
+                                    )}
+                                    <div>
+                                        <div data-theme={theme} className="font-medium data-[theme=dark]:text-white data-[theme=light]:text-slate-800">
+                                            {product.name}
+                                        </div>
+                                        {product.description && (
+                                            <div className="text-sm text-gray-400 truncate max-w-[200px]">
+                                                {product.description}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </td>
+                            <td className="p-4 text-gray-400">{product.sku || '-'}</td>
+                            <td className="p-4 text-gray-400">{product.category?.name || '-'}</td>
+                            <td className="p-4 text-right">
+                                <span data-theme={theme} className="font-medium data-[theme=dark]:text-white data-[theme=light]:text-slate-800">
+                                    {formatCurrency(parseFloat(product.salePrice || '0'))}
+                                </span>
+                            </td>
+                            <td className="p-4 text-center">
+                                {product.trackInventory ? (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-emerald-500/20 text-emerald-400">
+                                        {t('common.yes', 'Yes')}
+                                    </span>
+                                ) : (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-gray-500/20 text-gray-400">
+                                        {t('common.no', 'No')}
+                                    </span>
+                                )}
+                            </td>
+                            <td className="p-4">
+                                <div className={cn('flex items-center gap-2', isRTL ? 'justify-start' : 'justify-center')}>
+                                    {product.trackInventory && (
+                                        <button
+                                            onClick={() => onAddStock(product.id)}
+                                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 transition-colors text-sm"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            {t('actions.addStock', 'Add Stock')}
+                                        </button>
+                                    )}
                                 </div>
                             </td>
                         </tr>

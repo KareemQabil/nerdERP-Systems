@@ -43,7 +43,7 @@ interface InventoryState {
     error: string | null;
 
     // Active tab
-    activeTab: 'overview' | 'batches' | 'movements' | 'alerts';
+    activeTab: 'overview' | 'products' | 'batches' | 'movements' | 'alerts';
 
     // Filters
     batchFilters: BatchFilters;

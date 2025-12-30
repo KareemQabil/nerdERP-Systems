@@ -41,6 +41,7 @@ import { KitchenStation } from './modules/kitchen/entities/kitchen-station.entit
 import { Table, TableZone } from './modules/tables/entities/table.entity';
 import { Reservation } from './modules/tables/entities/reservation.entity';
 import { RegisterSession } from './modules/cash/entities/register-session.entity';
+import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
@@ -64,7 +65,19 @@ import { RegisterSession } from './modules/cash/entities/register-session.entity
         if (!options) {
           throw new Error('Invalid options passed');
         }
-        return addTransactionalDataSource(new DataSource(options));
+        const dataSource = new DataSource(options);
+
+        // Handle retry scenario - if dataSource already registered, just return initialized one
+        try {
+          return addTransactionalDataSource(dataSource);
+        } catch (error) {
+          // If already added on a previous retry attempt, just initialize and return
+          if (error instanceof Error && error.message.includes('already added')) {
+            await dataSource.initialize();
+            return dataSource;
+          }
+          throw error;
+        }
       },
     }),
     TypeOrmModule.forFeature([
@@ -74,6 +87,7 @@ import { RegisterSession } from './modules/cash/entities/register-session.entity
       // Phase 2 entities
       KitchenStation, TableZone, Table, Reservation, RegisterSession,
     ]),
+    CommonModule, // Must be before other modules that use AuditLogService
     ProductsModule,
     InventoryModule,
     SalesModule,

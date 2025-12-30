@@ -21,6 +21,7 @@ import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui';
 import { useSettingsStore } from '@/stores/settings.store';
+import { categoryService, productService, type Category } from '@/services/product.service';
 
 // =============================================================================
 // Types
@@ -98,6 +99,26 @@ export function ItemMasterModal({ isOpen, onClose, onSave, editItem }: ItemMaste
     const [currentPhase, setCurrentPhase] = useState<1 | 2 | 3>(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState<Partial<Record<keyof ItemMasterFormData, string>>>({});
+    const [categories, setCategories] = useState<Category[]>([]);
+    const [isLoadingCategories, setIsLoadingCategories] = useState(false);
+
+    // Fetch categories from API on mount
+    useEffect(() => {
+        const fetchCategories = async () => {
+            setIsLoadingCategories(true);
+            try {
+                const data = await categoryService.getActive();
+                setCategories(data);
+            } catch (error) {
+                console.error('Failed to load categories:', error);
+            } finally {
+                setIsLoadingCategories(false);
+            }
+        };
+        if (isOpen) {
+            fetchCategories();
+        }
+    }, [isOpen]);
 
     // Reset form when opening
     useEffect(() => {
@@ -173,7 +194,30 @@ export function ItemMasterModal({ isOpen, onClose, onSave, editItem }: ItemMaste
 
         setIsSubmitting(true);
         try {
-            await onSave?.(formData);
+            // If onSave prop is provided, use it (for custom handling)
+            if (onSave) {
+                await onSave(formData);
+            } else {
+                // Otherwise, call productService.create() directly
+                // Convert price strings to numbers for backend validation
+                const salePriceNum = parseFloat(formData.salePrice) || 0;
+                const costPriceNum = formData.costPrice ? parseFloat(formData.costPrice) : undefined;
+
+                await productService.create({
+                    name: formData.name,
+                    sku: formData.sku,
+                    barcode: formData.barcode || undefined,
+                    description: formData.description || undefined,
+                    categoryId: formData.categoryId || undefined,
+                    salePrice: salePriceNum,
+                    costPrice: costPriceNum,
+                    taxable: !!formData.taxGroupId,
+                    isActive: formData.isActive,
+                    isPrepared: formData.isPrepared,
+                    trackInventory: formData.trackInventory,
+                    imageUrl: formData.imageUrl || undefined,
+                } as any);
+            }
             onClose();
         } catch (error) {
             console.error('Failed to save item:', error);
@@ -378,8 +422,12 @@ export function ItemMasterModal({ isOpen, onClose, onSave, editItem }: ItemMaste
                                                         'focus:outline-none focus:ring-2 focus:ring-emerald-500'
                                                     )}
                                                 >
-                                                    <option value="">{t('itemMaster.selectCategory', 'Select Category')}</option>
-                                                    {/* Categories will be loaded from API */}
+                                                    <option value="">{isLoadingCategories ? t('common.loading', 'Loading...') : t('itemMaster.selectCategory', 'Select Category')}</option>
+                                                    {categories.map((cat) => (
+                                                        <option key={cat.id} value={cat.id}>
+                                                            {isRTL && cat.nameAr ? cat.nameAr : cat.name}
+                                                        </option>
+                                                    ))}
                                                 </select>
                                             </div>
                                         </div>
@@ -553,6 +601,43 @@ export function ItemMasterModal({ isOpen, onClose, onSave, editItem }: ItemMaste
                                         </div>
                                     </div>
 
+                                    {/* Inventory Tracking */}
+                                    <div>
+                                        <h3 className={cn(
+                                            'text-sm font-semibold mb-4 flex items-center gap-2',
+                                            'data-[theme=dark]:text-white data-[theme=light]:text-slate-700'
+                                        )} data-theme={theme}>
+                                            <Package className="w-4 h-4 text-emerald-400" />
+                                            {t('itemMaster.inventorySettings', 'Inventory Settings')}
+                                        </h3>
+
+                                        <div className="flex items-center justify-between p-4 rounded-lg border data-[theme=dark]:border-white/10 data-[theme=light]:border-slate-200" data-theme={theme}>
+                                            <div>
+                                                <div className={cn(
+                                                    'font-medium',
+                                                    'data-[theme=dark]:text-white data-[theme=light]:text-slate-800'
+                                                )} data-theme={theme}>
+                                                    {t('itemMaster.fields.trackInventory', 'Track Inventory')}
+                                                </div>
+                                                <div className="text-sm text-gray-400">
+                                                    {t('itemMaster.fields.trackInventoryDesc', 'Enable stock level tracking, batches, and low-stock alerts')}
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleInputChange('trackInventory', !formData.trackInventory)}
+                                                className={cn(
+                                                    'relative w-14 h-7 rounded-full transition-colors',
+                                                    formData.trackInventory ? 'bg-emerald-500' : 'bg-gray-500'
+                                                )}
+                                            >
+                                                <span className={cn(
+                                                    'absolute top-1 w-5 h-5 rounded-full bg-white transition-transform',
+                                                    formData.trackInventory ? 'left-8' : 'left-1'
+                                                )} />
+                                            </button>
+                                        </div>
+                                    </div>
                                     {/* Kitchen Routing - only for prepared items */}
                                     {(formData.type === 'MANUFACTURED' || formData.type === 'STANDARD') && (
                                         <div>

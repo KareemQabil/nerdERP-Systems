@@ -4,6 +4,22 @@ import { SalesOrder } from './sales-order.entity';
 import { Product } from '../../products/entities/product.entity';
 import { DecimalTransformer } from '../../../common/transformers/decimal.transformer';
 
+// =============================================================================
+// TYPES
+// =============================================================================
+
+export interface OrderItemModifier {
+    modifierId: string;
+    modifierName: string;
+    modifierNameAr?: string;
+    priceAdjustment: number;
+    isNegative: boolean;
+}
+
+// =============================================================================
+// ORDER ITEM ENTITY
+// =============================================================================
+
 @Entity('order_items')
 export class OrderItem extends AbstractEntity {
     @ManyToOne(() => SalesOrder, (order) => order.items)
@@ -60,4 +76,47 @@ export class OrderItem extends AbstractEntity {
         transformer: new DecimalTransformer(),
     })
     total: number;
+
+    // =============================================================================
+    // NEW: Void Tracking Columns
+    // =============================================================================
+
+    @Column({ name: 'is_voided', default: false })
+    isVoided: boolean;
+
+    @Column({ name: 'voided_at', type: 'timestamp with time zone', nullable: true })
+    voidedAt: Date;
+
+    @Column({ name: 'void_reason', nullable: true })
+    voidReason: string;
+
+    @Column({ name: 'voided_by_user_id', nullable: true })
+    voidedByUserId: string;
+
+    @Column({ name: 'void_authorized_by_user_id', nullable: true })
+    voidAuthorizedByUserId: string;
+
+    // =============================================================================
+    // NEW: Kitchen Status Tracking
+    // =============================================================================
+
+    @Column({ name: 'kitchen_status', type: 'varchar', length: 20, nullable: true })
+    kitchenStatus: 'PENDING' | 'FIRED' | 'PREPARING' | 'READY' | 'SERVED' | null;
+
+    @Column({ name: 'fired_to_kitchen_at', type: 'timestamp with time zone', nullable: true })
+    firedToKitchenAt: Date;
+
+    // =============================================================================
+    // NEW: Modifiers Storage
+    // =============================================================================
+
+    @Column({ type: 'jsonb', nullable: true })
+    modifiers: OrderItemModifier[];
+
+    // =============================================================================
+    // NEW: Special Instructions
+    // =============================================================================
+
+    @Column({ name: 'special_instructions', type: 'text', nullable: true })
+    specialInstructions: string;
 }

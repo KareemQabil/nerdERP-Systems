@@ -3,6 +3,20 @@
  * Re-export all services for convenient importing
  */
 
+// Auth services
+export { authService } from './auth.service';
+export type {
+  User as AuthUser,
+  Role as AuthRole,
+  LoginRequest,
+  PinLoginRequest,
+  VerifyPinRequest,
+  VerifyPinResponse,
+  ChangePinRequest,
+  UnlockSessionRequest,
+  AuthResponse,
+} from './auth.service';
+
 // Product services
 export { categoryService, productService, modifierService } from './product.service';
 export type { Category, Product, ProductVariant, ModifierGroup, Modifier } from './product.service';

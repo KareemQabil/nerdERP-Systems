@@ -1,5 +1,31 @@
-import { Entity, Column } from 'typeorm';
+import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { AbstractEntity } from '../../../common/entities/abstract.entity';
+
+/**
+ * Role Entity
+ * RBAC with granular permissions
+ */
+@Entity('roles')
+export class Role extends AbstractEntity {
+    @Column({ name: 'role_name' })
+    roleName: string;
+
+    @Column({ name: 'role_code', unique: true })
+    roleCode: string; // 'ADMIN', 'MANAGER', 'CASHIER', 'WAITER'
+
+    /**
+     * Permissions as array of action strings
+     * Example: ['orders.*', 'products.view', 'inventory.adjust', 'reports.sales']
+     */
+    @Column({ type: 'jsonb' })
+    permissions: string[];
+
+    @Column({ name: 'is_system_role', default: false })
+    isSystemRole: boolean;
+
+    @Column({ name: 'parent_role_id', nullable: true })
+    parentRoleId: string; // For role inheritance
+}
 
 /**
  * User Entity
@@ -28,8 +54,12 @@ export class User extends AbstractEntity {
     @Column({ name: 'pin_code', nullable: true })
     pinCode: string;
 
-    @Column({ name: 'role_id' })
+    @Column({ name: 'role_id', nullable: true })
     roleId: string;
+
+    @ManyToOne(() => Role, { eager: true, nullable: true })
+    @JoinColumn({ name: 'role_id' })
+    role: Role;
 
     @Column({ name: 'is_active', default: true })
     isActive: boolean;
@@ -42,32 +72,6 @@ export class User extends AbstractEntity {
 
     @Column({ type: 'jsonb', nullable: true })
     metadata: Record<string, any>;
-}
-
-/**
- * Role Entity
- * RBAC with granular permissions
- */
-@Entity('roles')
-export class Role extends AbstractEntity {
-    @Column({ name: 'role_name' })
-    roleName: string;
-
-    @Column({ name: 'role_code', unique: true })
-    roleCode: string; // 'ADMIN', 'MANAGER', 'CASHIER', 'WAITER'
-
-    /**
-     * Permissions as array of action strings
-     * Example: ['orders.*', 'products.view', 'inventory.adjust', 'reports.sales']
-     */
-    @Column({ type: 'jsonb' })
-    permissions: string[];
-
-    @Column({ name: 'is_system_role', default: false })
-    isSystemRole: boolean;
-
-    @Column({ name: 'parent_role_id', nullable: true })
-    parentRoleId: string; // For role inheritance
 }
 
 /**

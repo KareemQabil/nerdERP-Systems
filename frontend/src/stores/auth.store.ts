@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 import type { PinAuthorizationRequest, PinAuthorizationResult, VoidReason } from '@/types/pos.types';
 import type { Role, Permission as ConfigPermission } from '@/types/config.types';
+import { authService } from '@/services/auth.service';
 
 // =============================================================================
 // USER TYPES
@@ -94,14 +95,37 @@ interface AuthState {
     isLoggedIn: boolean;
     loginTime: string | null;
 
-    // PIN verification (mock manager database)
+    // PIN lock state (NEW)
+    isLocked: boolean;
+    lockedAt: string | null;
+    pinLockTimeout: number; // minutes before auto-lock
+    lastActivity: string | null;
+
+    // PIN verification (fallback to mock if API unavailable)
     managers: Map<string, { id: string; name: string; pin: string }>;
+    useApiForPin: boolean; // Toggle between API and mock
 
     // Authorization log
     authorizationLogs: AuthorizationLog[];
 
     // Pending authorization request
     pendingAuth: PinAuthorizationRequest | null;
+
+    // =========================================================================
+    // LOGIN/LOGOUT ACTIONS
+    // =========================================================================
+
+    login: (user: User) => void;
+    logout: () => void;
+
+    // =========================================================================
+    // PIN LOCK STATE (NEW)
+    // =========================================================================
+
+    lockPOS: (reason: string) => void;
+    unlockPOS: (pin: string) => Promise<{ success: boolean; error?: string }>;
+    updateLastActivity: () => void;
+    checkAutoLock: () => void;
 
     // =========================================================================
     // LOGIN/LOGOUT ACTIONS
@@ -122,6 +146,14 @@ interface AuthState {
     // =========================================================================
 
     verifyPin: (pin: string, action: PinAuthorizationRequest['action'], reason?: VoidReason | string) => Promise<PinAuthorizationResult>;
+    verifyPinWithApi: (pin: string, action: string, reason?: string) => Promise<PinAuthorizationResult>;
+
+    // =========================================================================
+    // PIN MANAGEMENT (NEW)
+    // =========================================================================
+
+    changePin: (oldPin: string, newPin: string) => Promise<{ success: boolean; error?: string }>;
+    forgotPin: () => void; // Opens reset flow
 
     /**
      * Request manager authentication for a specific permission
@@ -261,7 +293,12 @@ export const useAuthStore = create<AuthState>()(
                 role: null,
                 isLoggedIn: false,
                 loginTime: null,
+                isLocked: false,
+                lockedAt: null,
+                pinLockTimeout: 5, // 5 minutes default
+                lastActivity: null,
                 managers: DEFAULT_MANAGERS,
+                useApiForPin: true, // Use API by default
                 authorizationLogs: [],
                 pendingAuth: null,
 
@@ -331,17 +368,80 @@ export const useAuthStore = create<AuthState>()(
                 },
 
                 // =====================================================================
-                // PIN VERIFICATION
+                // PIN VERIFICATION (Enhanced with API integration)
                 // =====================================================================
 
                 verifyPin: async (pin, action, reason) => {
-                    // Simulate network delay
+                    const state = get();
+                    // Use API if enabled, otherwise fall back to mock
+                    if (state.useApiForPin) {
+                        return get().verifyPinWithApi(pin, action, reason);
+                    }
+                    return get().verifyPinMock(pin, action, reason);
+                },
+
+                verifyPinWithApi: async (pin, action, reason) => {
+                    const currentUser = get().currentUser;
+
+                    try {
+                        const result = await authService.verifyPin({ pin, action, reason });
+
+                        // Log the successful authorization
+                        const log: AuthorizationLog = {
+                            id: crypto.randomUUID(),
+                            action: action as PinAuthorizationRequest['action'],
+                            authorizedBy: result.managerId ?? 'unknown',
+                            authorizedByName: result.managerName ?? 'Unknown',
+                            requestedBy: currentUser?.id ?? 'unknown',
+                            timestamp: result.timestamp,
+                            reason,
+                            success: result.authorized,
+                        };
+
+                        const pending = get().pendingAuth;
+                        if (pending) {
+                            log.itemId = pending.itemId;
+                            log.itemName = pending.itemName;
+                        }
+
+                        set((state) => ({
+                            authorizationLogs: [log, ...state.authorizationLogs].slice(0, 100),
+                            pendingAuth: result.authorized ? null : state.pendingAuth,
+                        }));
+
+                        return result;
+                    } catch (error) {
+                        // Handle API errors (PIN locked, invalid PIN, etc.)
+                        const errorMessage = (error as Error).message;
+
+                        // Log failed attempt
+                        const log: AuthorizationLog = {
+                            id: crypto.randomUUID(),
+                            action: action as PinAuthorizationRequest['action'],
+                            authorizedBy: 'unknown',
+                            authorizedByName: 'Unknown',
+                            requestedBy: currentUser?.id ?? 'unknown',
+                            timestamp: new Date().toISOString(),
+                            reason,
+                            success: false,
+                        };
+
+                        set((state) => ({
+                            authorizationLogs: [log, ...state.authorizationLogs].slice(0, 100),
+                        }));
+
+                        // Re-throw with consistent format
+                        throw error;
+                    }
+                },
+
+                // Fallback mock verification (kept for demo/testing)
+                verifyPinMock: async (pin, action, reason) => {
                     await new Promise((resolve) => setTimeout(resolve, 500));
 
                     const managers = get().managers;
                     const currentUser = get().currentUser;
 
-                    // Find manager with matching PIN
                     let authorizedManager: { id: string; name: string } | null = null;
 
                     for (const [, manager] of managers) {
@@ -353,7 +453,6 @@ export const useAuthStore = create<AuthState>()(
 
                     const success = authorizedManager !== null;
 
-                    // Log the authorization attempt
                     const log: AuthorizationLog = {
                         id: crypto.randomUUID(),
                         action,
@@ -365,7 +464,6 @@ export const useAuthStore = create<AuthState>()(
                         success,
                     };
 
-                    // Add pending auth details to log
                     const pending = get().pendingAuth;
                     if (pending) {
                         log.itemId = pending.itemId;
@@ -373,7 +471,7 @@ export const useAuthStore = create<AuthState>()(
                     }
 
                     set((state) => ({
-                        authorizationLogs: [log, ...state.authorizationLogs].slice(0, 100), // Keep last 100
+                        authorizationLogs: [log, ...state.authorizationLogs].slice(0, 100),
                         pendingAuth: success ? null : state.pendingAuth,
                     }));
 
@@ -383,6 +481,84 @@ export const useAuthStore = create<AuthState>()(
                         managerName: authorizedManager?.name,
                         timestamp: log.timestamp,
                     };
+                },
+
+                // =====================================================================
+                // PIN LOCK STATE (NEW)
+                // =====================================================================
+
+                lockPOS: (reason) => {
+                    set({
+                        isLocked: true,
+                        lockedAt: new Date().toISOString(),
+                        pendingAuth: null, // Clear any pending auth on lock
+                    });
+                },
+
+                unlockPOS: async (pin) => {
+                    const state = get();
+                    try {
+                        // Try to unlock using the same PIN verification
+                        const result = await authService.verifyPin({
+                            pin,
+                            action: 'UNLOCK_SESSION',
+                        });
+
+                        if (result.authorized) {
+                            set({
+                                isLocked: false,
+                                lockedAt: null,
+                                lastActivity: new Date().toISOString(),
+                            });
+                            return { success: true };
+                        }
+
+                        return { success: false, error: 'Invalid PIN' };
+                    } catch (error) {
+                        const errorMessage = (error as Error).message;
+                        if (errorMessage === 'PIN_LOCKED') {
+                            return { success: false, error: 'PIN is locked. Please contact a manager.' };
+                        }
+                        return { success: false, error: 'Invalid PIN' };
+                    }
+                },
+
+                updateLastActivity: () => {
+                    set({ lastActivity: new Date().toISOString() });
+                },
+
+                checkAutoLock: () => {
+                    const state = get();
+                    if (!state.isLoggedIn || state.isLocked) return;
+
+                    if (state.lastActivity && state.pinLockTimeout > 0) {
+                        const lastActivityTime = new Date(state.lastActivity).getTime();
+                        const currentTime = Date.now();
+                        const elapsed = (currentTime - lastActivityTime) / 1000 / 60; // minutes
+
+                        if (elapsed >= state.pinLockTimeout) {
+                            get().lockPOS('Auto-lock due to inactivity');
+                        }
+                    }
+                },
+
+                // =====================================================================
+                // PIN MANAGEMENT (NEW)
+                // =====================================================================
+
+                changePin: async (oldPin, newPin) => {
+                    try {
+                        await authService.changePin({ oldPin, newPin });
+                        return { success: true };
+                    } catch (error) {
+                        return { success: false, error: (error as Error).message };
+                    }
+                },
+
+                forgotPin: () => {
+                    // Open forgot PIN flow
+                    // For now, just alert the user to contact a manager
+                    alert('Please contact your manager to reset your PIN.');
                 },
 
                 // =====================================================================

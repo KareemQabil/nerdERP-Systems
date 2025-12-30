@@ -130,6 +130,27 @@ class ProductService extends ApiService<Product> {
     }
 
     /**
+     * Get all products for inventory management (no filtering)
+     */
+    async getAllProducts(limit = 200): Promise<Product[]> {
+        const response = await apiClient.get<ApiResponse<any[]>>(
+            this.endpoint,
+            { params: { limit } }
+        );
+
+        // Handle both array and paginated response formats
+        const rawData = response.data.data;
+        const products = Array.isArray(rawData) ? rawData : (rawData as any)?.data || [];
+
+        return products.map((p: any) => ({
+            ...p,
+            imageUrl: p.imageUrl || p.metadata?.imageUrl || undefined,
+            trackInventory: p.trackInventory ?? false,
+            salePrice: String(p.salePrice),
+        }));
+    }
+
+    /**
      * Get active products for POS
      * Maps backend product data including extracting imageUrl from metadata
      */
