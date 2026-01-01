@@ -4,8 +4,9 @@ import { Plus, Package, Sparkles, TrendingUp, Star, Settings2 } from 'lucide-rea
 import { cn } from '@/lib/utils';
 import { formatCurrency } from '@/lib/decimal';
 import { Badge } from '../ui/Badge';
-import { useSettingsStore } from '@/stores/settings.store';
-import type { ProductInfo } from '@/stores/cart.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
+import type { ProductInfo } from '@/features/pos/slices/cartSlice';
 
 export interface ProductCardProps {
     /** Product ID */
@@ -61,7 +62,7 @@ export function ProductCard({
     onCustomize,
     isLoading = false,
 }: ProductCardProps) {
-    const { language, theme } = useSettingsStore();
+    const { language, theme } = useAppSelector(selectSettings);
     const [imageLoaded, setImageLoaded] = useState(false);
     const [isHovered, setIsHovered] = useState(false);
 

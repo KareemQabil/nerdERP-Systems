@@ -1,20 +1,21 @@
 import { Outlet } from 'react-router-dom';
 import { Suspense } from 'react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectTheme } from '@/features/settings/slices/settingsSlice';
 import { MainNavigation } from './MainNavigation';
 import { LoadingSpinner } from '../feedback/LoadingSpinner';
 
 /**
  * Main application layout with navigation sidebar
  * Handles the overall page structure for authenticated routes
- * 
+ *
  * IMPORTANT: Navigation is ALWAYS on the RIGHT side regardless of RTL/LTR.
  * RTL only affects text flow within content areas, not the main layout structure.
  */
 export function MainLayout() {
-    // Get theme from settings store to propagate to components
-    const theme = useSettingsStore((state) => state.theme);
+    // Get theme from Redux settings store
+    const theme = useAppSelector(selectTheme);
 
     return (
         <div

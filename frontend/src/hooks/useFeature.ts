@@ -1,8 +1,16 @@
 /**
  * Feature Flag Hook
  * Access feature flags from config store with convenient API
+ * Migrated to Redux from Zustand
  */
-import { useConfigStore, selectFeature } from '@/stores/config.store';
+import { useAppSelector } from '@/app/hooks';
+import {
+    selectFeature,
+    selectFeatures,
+    selectIsLoaded,
+    setFeature,
+} from '@/features/pos/slices/configSlice';
+import { useAppDispatch } from '@/app/hooks';
 
 /**
  * Check if a feature is enabled
@@ -14,7 +22,7 @@ import { useConfigStore, selectFeature } from '@/stores/config.store';
  * const hasKitchen = useFeature('modules.kitchen');
  */
 export function useFeature(path: string): boolean {
-    return useConfigStore(selectFeature(path));
+    return useAppSelector(selectFeature(path));
 }
 
 /**
@@ -27,8 +35,8 @@ export function useFeature(path: string): boolean {
  * if (!enabled) return null;
  */
 export function useFeatureWithState(path: string) {
-    const isLoaded = useConfigStore((s) => s.isLoaded);
-    const enabled = useConfigStore(selectFeature(path));
+    const isLoaded = useAppSelector(selectIsLoaded);
+    const enabled = useAppSelector(selectFeature(path));
 
     return {
         enabled,
@@ -45,7 +53,7 @@ export function useFeatureWithState(path: string) {
  * const canShowTableSelector = useFeatures('pos.dineIn', 'modules.pos');
  */
 export function useFeatures(...paths: string[]): boolean {
-    const features = useConfigStore((s) => s.features);
+    const features = useAppSelector(selectFeatures);
     return paths.every((path) => {
         const value = getNestedValue(features, path);
         return value === true;
@@ -61,7 +69,7 @@ export function useFeatures(...paths: string[]): boolean {
  * const hasAnyPaymentOptions = useAnyFeature('customers.loyaltyProgram', 'customers.giftCards');
  */
 export function useAnyFeature(...paths: string[]): boolean {
-    const features = useConfigStore((s) => s.features);
+    const features = useAppSelector(selectFeatures);
     return paths.some((path) => {
         const value = getNestedValue(features, path);
         return value === true;
@@ -73,21 +81,21 @@ export function useAnyFeature(...paths: string[]): boolean {
  * Useful for debugging or displaying feature matrix
  */
 export function useAllFeatures() {
-    return useConfigStore((s) => s.features);
+    return useAppSelector(selectFeatures);
 }
 
 /**
  * Toggle a feature (for settings UI)
  */
 export function useFeatureToggle(path: string) {
+    const dispatch = useAppDispatch();
     const enabled = useFeature(path);
-    const setFeature = useConfigStore((s) => s.setFeature);
 
     return {
         enabled,
-        toggle: () => setFeature(path, !enabled),
-        enable: () => setFeature(path, true),
-        disable: () => setFeature(path, false),
+        toggle: () => dispatch(setFeature({ path, enabled: !enabled })),
+        enable: () => dispatch(setFeature({ path, enabled: true })),
+        disable: () => dispatch(setFeature({ path, enabled: false })),
     };
 }
 

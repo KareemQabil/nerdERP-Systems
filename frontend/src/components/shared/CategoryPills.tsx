@@ -14,7 +14,8 @@ import {
     type LucideIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 
 export interface Category {
     id: string;
@@ -63,7 +64,7 @@ export function CategoryPills({
     allLabel = 'الكل',
     showAll = true,
 }: CategoryPillsProps) {
-    const { language, theme } = useSettingsStore();
+    const { language, theme } = useAppSelector(selectSettings);
 
     const allCategories = showAll
         ? [{ id: 'all', name: 'All', nameAr: allLabel, icon: 'all' }, ...categories]

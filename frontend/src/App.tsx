@@ -1,6 +1,9 @@
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, lazy } from 'react';
 import { RouterProvider, createBrowserRouter, Navigate } from 'react-router-dom';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AppProviders } from '@/app/providers';
+import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import { initializeFromPersisted, selectSettings } from '@/features/settings/slices/settingsSlice';
+// Keep Zustand store during migration (for components not yet migrated)
 import { useSettingsStore } from '@/stores/settings.store';
 import { MainLayout } from '@/components/layout';
 import { LoadingSpinner } from '@/components/feedback';
@@ -18,23 +21,9 @@ import {
 import '@/config/i18n.config';
 import './index.css';
 
-// Lazy load pages for code splitting
-import { lazy } from 'react';
-
-const POSPage = lazy(() => import('@/modules/pos/pages/POSPage'));
-const SettingsPage = lazy(() => import('@/modules/settings/pages/SettingsPage'));
-// const LoginPage = lazy(() => import('@/modules/auth/pages/LoginPage'));
-
-// Create a client
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      retry: 1,
-      refetchOnWindowFocus: false,
-    },
-  },
-});
+const POSPage = lazy(() => import('@/features/pos/pages/POSPage'));
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
+// const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 
 // Loading fallback component
 function PageLoader() {
@@ -106,19 +95,40 @@ const router = createBrowserRouter([
   // { path: '/login', element: <LoginPage /> },
 ]);
 
-// App wrapper with providers
-function App() {
-  const initializeFromDOM = useSettingsStore((state) => state.initializeFromDOM);
+// Inner app component that uses Redux hooks
+function AppContent() {
+  const dispatch = useAppDispatch();
+  const settings = useAppSelector(selectSettings);
+
+  // Also initialize Zustand store during migration period
+  const initializeZustandSettings = useSettingsStore((state) => state.initializeFromDOM);
 
   useEffect(() => {
-    // Initialize theme/language/direction on mount
-    initializeFromDOM();
-  }, [initializeFromDOM]);
+    // Initialize Redux settings from persisted state
+    dispatch(initializeFromPersisted());
+    // Also initialize Zustand store for components not yet migrated
+    initializeZustandSettings();
+  }, [dispatch, initializeZustandSettings]);
 
+  // Sync Redux settings to Zustand during migration
+  const setZustandLanguage = useSettingsStore((state) => state.setLanguage);
+  const setZustandTheme = useSettingsStore((state) => state.setTheme);
+
+  useEffect(() => {
+    // Keep Zustand in sync with Redux settings
+    setZustandLanguage(settings.language);
+    setZustandTheme(settings.theme);
+  }, [settings.language, settings.theme, setZustandLanguage, setZustandTheme]);
+
+  return <RouterProvider router={router} />;
+}
+
+// App wrapper with providers
+function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <AppProviders>
+      <AppContent />
+    </AppProviders>
   );
 }
 

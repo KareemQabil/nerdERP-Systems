@@ -2,7 +2,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import { selectLanguage, selectTheme, toggleLanguage } from '@/features/settings/slices/settingsSlice';
 import {
     Store,
     ClipboardList,
@@ -44,7 +45,11 @@ const navItems: NavItem[] = [
 export function MainNavigation() {
     const { t } = useTranslation('common');
     const location = useLocation();
-    const { language, toggleLanguage, theme } = useSettingsStore();
+    const dispatch = useAppDispatch();
+    const language = useAppSelector(selectLanguage);
+    const theme = useAppSelector(selectTheme);
+
+    const handleToggleLanguage = () => dispatch(toggleLanguage());
 
     return (
         <nav
@@ -180,7 +185,7 @@ export function MainNavigation() {
             )}>
                 {/* Language Toggle */}
                 <button
-                    onClick={toggleLanguage}
+                    onClick={handleToggleLanguage}
                     className={cn(
                         'w-full flex flex-col items-center gap-1 py-3 px-2 rounded-xl',
                         'transition-all duration-200 border',

@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import { formatCurrency, DecimalUtil } from '@/lib/decimal';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 
 export interface PriceDisplayProps {
     /** Price value as string (for precision) */
@@ -29,7 +30,7 @@ export function PriceDisplay({
     strikethrough = false,
     variant = 'default',
 }: PriceDisplayProps) {
-    const { language } = useSettingsStore();
+    const { language } = useAppSelector(selectSettings);
 
     const sizeStyles = {
         sm: 'text-sm',

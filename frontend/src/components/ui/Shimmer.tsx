@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 
 export interface ShimmerProps {
     /** Shimmer shape type */
@@ -25,7 +26,7 @@ export function Shimmer({
     lines = 1,
     className,
 }: ShimmerProps) {
-    const theme = useSettingsStore((state) => state.theme);
+    const { theme } = useAppSelector(selectSettings);
 
     const baseClasses = cn(
         'animate-shimmer rounded',
@@ -101,7 +102,7 @@ export interface ShimmerImageProps {
 }
 
 export function ShimmerImage({ src, alt, className, onLoad }: ShimmerImageProps) {
-    const theme = useSettingsStore((state) => state.theme);
+    const { theme } = useAppSelector(selectSettings);
 
     return (
         <div className={cn('relative overflow-hidden', className)} data-theme={theme}>

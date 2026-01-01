@@ -1,6 +1,7 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
     /** Label text */
@@ -37,7 +38,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         },
         ref
     ) => {
-        const theme = useSettingsStore((s) => s.theme);
+        const { theme } = useAppSelector(selectSettings);
         const inputId = id || `input-${Math.random().toString(36).slice(2, 9)}`;
 
         return (

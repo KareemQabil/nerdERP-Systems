@@ -4,7 +4,8 @@
  */
 import { useTranslation } from 'react-i18next';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 import type { LucideIcon } from 'lucide-react';
 
 interface PlaceholderPageProps {
@@ -15,7 +16,7 @@ interface PlaceholderPageProps {
 
 export function PlaceholderPage({ titleKey, descriptionKey, icon: Icon }: PlaceholderPageProps) {
     const { t } = useTranslation('common');
-    const { theme } = useSettingsStore();
+    const { theme } = useAppSelector(selectSettings);
     const isDark = theme === 'dark' || theme === 'luxury';
 
     return (

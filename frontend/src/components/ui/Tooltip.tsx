@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { cn } from '@/lib/utils';
-import { useSettingsStore } from '@/stores/settings.store';
+import { useAppSelector } from '@/app/hooks';
+import { selectSettings } from '@/features/settings/slices/settingsSlice';
 
 export interface TooltipProps {
     /** Tooltip content */
@@ -16,7 +17,7 @@ export interface TooltipProps {
  * Used for action bar hints and keyboard shortcuts
  */
 export function Tooltip({ children, position = 'top', className }: TooltipProps) {
-    const theme = useSettingsStore((state) => state.theme);
+    const { theme } = useAppSelector(selectSettings);
 
     const positionStyles = {
         top: 'bottom-full left-1/2 -translate-x-1/2 mb-2',
