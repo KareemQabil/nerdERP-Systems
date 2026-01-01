@@ -3,6 +3,7 @@
 // Primitives
 export { Button, type ButtonProps } from './Button';
 export { Input, type InputProps } from './Input';
+export { Checkbox, type CheckboxProps } from './Checkbox';
 export { Modal, type ModalProps } from './Modal';
 export { Card, CardHeader, CardTitle, CardContent, CardFooter, type CardProps } from './Card';
 export { Badge, DotBadge, type BadgeProps } from './Badge';

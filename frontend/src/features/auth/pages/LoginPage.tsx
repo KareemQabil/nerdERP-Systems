@@ -56,8 +56,7 @@ export const LoginPage = () => {
 
     return (
         <div
-            className="min-h-screen flex items-center justify-center p-4"
-            style={{ background: 'var(--bg-gradient)' }}
+            className="min-h-screen flex items-center justify-center p-4 bg-[var(--background)]"
         >
             {/* Background Pattern */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">

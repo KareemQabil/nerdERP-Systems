@@ -23,7 +23,7 @@ import './index.css';
 
 const POSPage = lazy(() => import('@/features/pos/pages/POSPage'));
 const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage'));
-// const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
+const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'));
 
 // Loading fallback component
 function PageLoader() {
@@ -92,7 +92,14 @@ const router = createBrowserRouter([
       },
     ],
   },
-  // { path: '/login', element: <LoginPage /> },
+  {
+    path: '/login',
+    element: (
+      <Suspense fallback={<PageLoader />}>
+        <LoginPage />
+      </Suspense>
+    ),
+  },
 ]);
 
 // Inner app component that uses Redux hooks
