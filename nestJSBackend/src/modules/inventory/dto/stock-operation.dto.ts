@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsUUID, IsNumber, Min, IsEnum, IsOptional, IsDateString } from 'class-validator';
+import { IsNotEmpty, IsUUID, IsNumber, Min, IsEnum, IsOptional, IsDateString, IsBoolean } from 'class-validator';
 import { StockReferenceType } from '../entities/stock-move.entity';
 
 export class AddStockDto {
@@ -49,4 +49,18 @@ export class DeductStockDto {
 
     @IsOptional()
     referenceId?: string;
+
+    /**
+     * Allow negative stock (overselling)
+     *
+     * When true, stock deduction will continue even if insufficient stock.
+     * Batch quantities may go negative below zero.
+     *
+     * Business rules:
+     * - POS: Can be enabled for customer experience (don't turn away customers)
+     * - Production: Should ALWAYS be false (can't manufacture without materials)
+     */
+    @IsBoolean()
+    @IsOptional()
+    allowNegativeStock?: boolean;
 }

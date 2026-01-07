@@ -1,0 +1,8 @@
+# Fix line 564
+564s/.*/                    const transition = allowed.find(t => t.state === toState);\
+\
+                    if (!transition) {/
+
+# Fix line 575-576 - remove and replace with new logic
+/.*const approvalKey.*requiresApproval.*$/d
+

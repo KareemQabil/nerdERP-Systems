@@ -196,3 +196,53 @@ export class PinLoginDto {
     @IsUUID()
     deviceId: string;
 }
+
+// ============================================================================
+// PIN Verification DTOs (Enhanced with Lockout Support)
+// ============================================================================
+
+export class PinVerifyDto {
+    @ApiProperty({ example: '1234', description: '4-6 digit PIN code' })
+    @Matches(/^\d{4,6}$/)
+    pinCode: string;
+
+    @ApiProperty({ example: 'uuid-of-device', description: 'Device identifier for tracking attempts' })
+    @IsString()
+    deviceId: string;
+}
+
+export class PinVerifyByUserDto {
+    @ApiProperty({ example: 'uuid-of-user', description: 'User ID (more secure than PIN lookup)' })
+    @IsUUID()
+    userId: string;
+
+    @ApiProperty({ example: '1234', description: '4-6 digit PIN code' })
+    @Matches(/^\d{4,6}$/)
+    pinCode: string;
+
+    @ApiProperty({ example: 'uuid-of-device', description: 'Device identifier for tracking attempts' })
+    @IsString()
+    deviceId: string;
+}
+
+export class ClearPinLockoutDto {
+    @ApiProperty({ example: 'uuid-of-user', description: 'User ID to unlock' })
+    @IsUUID()
+    userId: string;
+
+    @ApiProperty({ example: 'uuid-of-device', description: 'Device identifier' })
+    @IsString()
+    deviceId: string;
+
+    @ApiProperty({ example: 'uuid-of-manager', description: 'Manager user ID performing the unlock' })
+    @IsUUID()
+    managerId: string;
+}
+
+export class PinLockoutStatusDto {
+    @ApiProperty({ example: 'uuid-of-user' })
+    userId: string;
+
+    @ApiProperty({ example: 'uuid-of-device' })
+    deviceId: string;
+}

@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule as NestConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { addTransactionalDataSource } from 'typeorm-transactional';
@@ -21,6 +21,10 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { UsersModule } from './modules/users/users.module';
 import { ReportingModule } from './modules/reporting/reporting.module';
 import { TranslationsModule } from './modules/translations/translations.module';
+import { PrintingModule } from './modules/printing/printing.module';
+import { ZatcaModule } from './modules/zatca/zatca.module';
+import { AggregatorModule } from './modules/aggregator/aggregator.module';
+import { ConfigModule } from './modules/config/config.module';
 import { SeedDataService } from './common/services/seed-data.service';
 import { SeedComprehensiveService } from './common/services/seed-comprehensive.service';
 import { SeedController } from './common/controllers/seed.controller';
@@ -41,15 +45,16 @@ import { KitchenStation } from './modules/kitchen/entities/kitchen-station.entit
 import { Table, TableZone } from './modules/tables/entities/table.entity';
 import { Reservation } from './modules/tables/entities/reservation.entity';
 import { RegisterSession } from './modules/cash/entities/register-session.entity';
+import { PrintJob } from './modules/printing/entities/print-job.entity';
 import { CommonModule } from './common/common.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
+    NestConfigModule.forRoot({
       isGlobal: true,
     }),
     TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
+      imports: [NestConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         type: 'postgres',
@@ -86,6 +91,8 @@ import { CommonModule } from './common/common.module';
       Customer, User, Role, AuditLog, Device, PaymentMethod, Warehouse,
       // Phase 2 entities
       KitchenStation, TableZone, Table, Reservation, RegisterSession,
+      // Phase 2.2 entities
+      PrintJob,
     ]),
     CommonModule, // Must be before other modules that use AuditLogService
     ProductsModule,
@@ -104,6 +111,10 @@ import { CommonModule } from './common/common.module';
     UsersModule,
     ReportingModule,
     TranslationsModule,
+    PrintingModule,
+    ZatcaModule,
+    AggregatorModule,
+    ConfigModule,
   ],
   controllers: [AppController, SeedController],
   providers: [

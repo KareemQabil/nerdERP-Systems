@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
@@ -8,9 +8,13 @@ import { StockMove, StockMoveType, StockReferenceType } from '../entities/stock-
 import { AddStockDto, DeductStockDto } from '../dto/stock-operation.dto';
 import { Product } from '../../products/entities/product.entity';
 import { Warehouse } from '../entities/warehouse.entity';
+import { InventoryGateway } from '../inventory.gateway';
+import { RecipeBomService, AggregatedIngredient } from './recipe-bom.service';
 
 @Injectable()
 export class InventoryService {
+    private readonly logger = new Logger(InventoryService.name);
+
     constructor(
         @InjectRepository(InventoryBatch)
         private readonly batchRepo: Repository<InventoryBatch>,
@@ -20,6 +24,9 @@ export class InventoryService {
         private readonly productRepo: Repository<Product>,
         @InjectRepository(Warehouse)
         private readonly warehouseRepo: Repository<Warehouse>,
+        @Inject(forwardRef(() => InventoryGateway))
+        private readonly inventoryGateway: InventoryGateway,
+        private readonly recipeBomService: RecipeBomService,
     ) { }
 
     @Transactional()
@@ -54,26 +61,59 @@ export class InventoryService {
         });
         await this.stockMoveRepo.save(move);
 
+        // 3. Broadcast stock change via WebSocket
+        const newAvailableQty = await this.getAvailableStock(dto.productId, dto.warehouseId);
+        this.inventoryGateway.broadcastStockChanged(
+            dto.warehouseId,
+            dto.productId,
+            newAvailableQty.toNumber(),
+            'IN',
+        );
+
         return batch;
     }
 
     @Transactional()
     async deductInventory(dto: DeductStockDto): Promise<StockMove[]> {
-        const { productId, warehouseId, quantity } = dto;
+        const { productId, warehouseId, quantity, allowNegativeStock = false } = dto;
         let qtyToDeduct = quantity;
 
-        // 1. Fetch batches FIFO (Oldest First)
+        // 1. Check if product is prepared (has recipe) - BOM Explosion
+        const product = await this.productRepo.findOneBy({ id: productId });
+        if (!product) {
+            throw new BadRequestException(`Product not found: ${productId}`);
+        }
+
+        if (product.isPrepared) {
+            // EXPLODE BOM: Deduct ingredients instead of prepared product
+            return this.deductPreparedProductIngredients(dto);
+        }
+
+        // 2. Standard deduction for raw materials (non-prepared products)
+        // Fetch batches FIFO (Oldest First)
+        // If negative stock is allowed, include all batches (even with zero/negative qty)
+        // If negative stock is NOT allowed, only include batches with positive quantity
+        const batchWhere: any = {
+            product: { id: productId },
+            warehouse: { id: warehouseId },
+        };
+
+        if (!allowNegativeStock) {
+            batchWhere.qtyRemaining = MoreThan(0);
+        }
+
         const batches = await this.batchRepo.find({
-            where: {
-                product: { id: productId },
-                warehouse: { id: warehouseId },
-                qtyRemaining: MoreThan(0),
-            },
+            where: batchWhere,
             order: { receivedDate: 'ASC' },
         });
 
-        const totalAvailable = batches.reduce((sum, b) => sum + Number(b.qtyRemaining), 0);
-        if (totalAvailable < qtyToDeduct) {
+        // Calculate total available (only positive quantities count)
+        const totalAvailable = batches
+            .filter(b => Number(b.qtyRemaining) > 0)
+            .reduce((sum, b) => sum + Number(b.qtyRemaining), 0);
+
+        // Check for insufficient stock (only if negative stock is NOT allowed)
+        if (!allowNegativeStock && totalAvailable < qtyToDeduct) {
             throw new BadRequestException({
                 code: 'INV_002',
                 message: `Insufficient stock. Required: ${qtyToDeduct}, Available: ${totalAvailable}`,
@@ -82,14 +122,14 @@ export class InventoryService {
 
         const moves: StockMove[] = [];
 
-        // 2. Iterate and Deduct
+        // 3. Iterate and Deduct
         for (const batch of batches) {
             if (qtyToDeduct <= 0) break;
 
             const batchQty = Number(batch.qtyRemaining);
             const deduction = Math.min(batchQty, qtyToDeduct);
 
-            // Update Batch
+            // Update Batch (may go negative if allowNegativeStock is true)
             batch.qtyRemaining = batchQty - deduction;
             await this.batchRepo.save(batch);
 
@@ -103,6 +143,7 @@ export class InventoryService {
                 referenceType: dto.referenceType || StockReferenceType.MANUAL,
                 referenceId: dto.referenceId,
                 costPerUnit: batch.costPerUnit, // COGS tracking
+                metadata: allowNegativeStock ? { negativeStock: true } : undefined,
             });
             await this.stockMoveRepo.save(move);
             moves.push(move);
@@ -110,7 +151,122 @@ export class InventoryService {
             qtyToDeduct -= deduction;
         }
 
+        // 4. If still have quantity to deduct and negative stock is allowed,
+        // create a "virtual" negative batch to track the overselling
+        if (qtyToDeduct > 0 && allowNegativeStock) {
+            // Create a new batch with negative quantity to track the deficit
+            // When stock is later added, this negative batch will be "filled" first
+            const virtualBatch = this.batchRepo.create({
+                product: { id: productId } as any,
+                warehouse: { id: warehouseId } as any,
+                qtyRemaining: -qtyToDeduct, // Negative quantity
+                costPerUnit: 0, // Cost will be calculated when actual stock is added
+                receivedDate: new Date(),
+                qualityStatus: QualityStatus.GOOD,
+            });
+            await this.batchRepo.save(virtualBatch);
+
+            // Create a stock move for the negative deduction
+            const negativeMove = this.stockMoveRepo.create({
+                product: { id: productId },
+                warehouse: { id: warehouseId },
+                batch: virtualBatch,
+                quantity: qtyToDeduct,
+                moveType: StockMoveType.OUT,
+                referenceType: dto.referenceType || StockReferenceType.MANUAL,
+                referenceId: dto.referenceId,
+                costPerUnit: 0,
+                metadata: {
+                    negativeStock: true,
+                    virtualBatch: true,
+                    note: 'Stock deduction exceeded available quantity (overselling)',
+                },
+            });
+            await this.stockMoveRepo.save(negativeMove);
+            moves.push(negativeMove);
+
+            this.logger.warn(
+                `Negative stock created for product ${productId}: -${qtyToDeduct} units ` +
+                `(allowed by configuration)`
+            );
+        }
+
+        // 5. Broadcast stock change via WebSocket
+        const newAvailableQty = await this.getAvailableStock(productId, warehouseId);
+        this.inventoryGateway.broadcastStockChanged(
+            warehouseId,
+            productId,
+            newAvailableQty.toNumber(),
+            'OUT',
+        );
+
         return moves;
+    }
+
+    /**
+     * Deduct ingredients for a prepared product (BOM Explosion)
+     *
+     * Called automatically by deductInventory when product.isPrepared is true
+     *
+     * @param dto The stock deduction request
+     * @returns Array of stock moves for all ingredient deductions
+     */
+    @Transactional()
+    private async deductPreparedProductIngredients(dto: DeductStockDto): Promise<StockMove[]> {
+        const { productId, warehouseId, quantity, referenceType, referenceId } = dto;
+
+        // 1. Get prepared product info
+        const product = await this.productRepo.findOneBy({ id: productId });
+        if (!product) {
+            throw new BadRequestException(`Product not found: ${productId}`);
+        }
+
+        // 2. Explode BOM recursively (handles multi-level recipes)
+        const ingredients = await this.recipeBomService.explodeBomRecursive(
+            productId,
+            quantity,
+        );
+
+        // 3. Aggregate duplicate ingredients (e.g., multiple sub-components use same raw material)
+        const aggregatedIngredients = this.recipeBomService.aggregateIngredients(ingredients);
+
+        // 4. Deduct each ingredient
+        const allMoves: StockMove[] = [];
+        for (const ingredient of aggregatedIngredients) {
+            // Recursively call deductInventory for each ingredient
+            // (Ingredients that are also prepared will trigger another BOM explosion)
+            const moves = await this.deductInventory({
+                productId: ingredient.productId,
+                warehouseId,
+                quantity: ingredient.quantity.toNumber(),
+                referenceType: referenceType || StockReferenceType.SALE,
+                referenceId,
+            });
+            allMoves.push(...moves);
+        }
+
+        // 5. Create a summary stock move for the prepared product itself
+        // This tracks that the prepared product was "sold/deducted" for reporting
+        const summaryMove = this.stockMoveRepo.create({
+            product: { id: productId },
+            warehouse: { id: warehouseId },
+            quantity,
+            moveType: StockMoveType.OUT,
+            referenceType: referenceType || StockReferenceType.SALE,
+            referenceId,
+            costPerUnit: 0, // COGS calculated from ingredients, not stored on prepared product
+            metadata: {
+                isPreparedProduct: true,
+                ingredientsDeducted: aggregatedIngredients.map(i => ({
+                    productId: i.productId,
+                    productName: i.productName,
+                    quantity: i.quantity.toNumber(),
+                })),
+            },
+        });
+        await this.stockMoveRepo.save(summaryMove);
+
+        return allMoves;
     }
 
     /**
@@ -421,6 +577,15 @@ export class InventoryService {
         move.costPerUnit = costPerUnit;
 
         await this.stockMoveRepo.save(move);
+
+        // Broadcast stock change via WebSocket
+        const newAvailableQty = await this.getAvailableStock(params.productId, warehouseId);
+        this.inventoryGateway.broadcastStockChanged(
+            warehouseId,
+            params.productId,
+            newAvailableQty.toNumber(),
+            'ADJUSTMENT',
+        );
     }
 
     /**
@@ -512,7 +677,7 @@ export class InventoryService {
     /**
      * Get default warehouse for a product
      */
-    private async getDefaultWarehouse(productId: string): Promise<string> {
+    async getDefaultWarehouse(productId: string): Promise<string> {
         const product = await this.productRepo.findOneBy({ id: productId });
 
         if (product?.defaultWarehouseId) {

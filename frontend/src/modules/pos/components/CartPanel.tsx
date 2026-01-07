@@ -1,13 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { X, Minus, Plus, Trash2, ShoppingCart, Package, Edit2, MessageSquare } from 'lucide-react';
+import { X, Minus, Plus, Trash2, ShoppingCart, Package, Edit2, MessageSquare, ChefHat } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useCartStore, type CartItem as CartItemType, type CartItemModifier } from '@/stores/cart.store';
 import { useSettingsStore } from '@/stores/settings.store';
 import { Button } from '@/components/ui';
 import { PriceDisplay } from '@/components/shared';
-import type { KitchenStatus } from '@/types/pos.types';
+import { VoidItemButton } from './VoidItemButton';
+import type { KitchenStatus, PinAuthorizationRequest, VoidReason } from '@/types/pos.types';
 
 export interface CartPanelProps {
     /** Whether cart is expanded */
@@ -18,6 +19,12 @@ export interface CartPanelProps {
     onEditItem?: (item: CartItemType) => void;
     /** Callback to trigger checkout */
     onCheckout?: () => void;
+    /** Callback for PIN authorization requests */
+    onRequestAuthorization?: (request: PinAuthorizationRequest) => void;
+    /** Callback to fire items to kitchen (dine-in only) */
+    onFireToKitchen?: () => void;
+    /** Whether to show the Fire to Kitchen button */
+    showFireButton?: boolean;
 }
 
 // Kitchen status config
@@ -33,7 +40,7 @@ const KITCHEN_STATUS_CONFIG: Record<KitchenStatus, { icon: string; color: string
  * Premium Cart Panel for POS - With Modifier Display
  * Fixed position that pushes content - NOT overlay
  */
-export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartPanelProps) {
+export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout, onRequestAuthorization, onFireToKitchen, showFireButton }: CartPanelProps) {
     const { t } = useTranslation(['pos', 'common']);
     const { language, theme } = useSettingsStore();
     const {
@@ -41,6 +48,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
         updateQuantity,
         removeItem,
         getSubtotal,
+        getServiceCharge,
         getTaxAmount,
         getTotal,
         getItemCount,
@@ -65,6 +73,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
         <AnimatePresence>
             {isExpanded && (
                 <motion.div
+                    data-testid="cart-panel"
                     data-theme={theme}
                     initial={{ x: slideOffset }}
                     animate={{ x: 0 }}
@@ -128,6 +137,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
                                 variant="ghost"
                                 size="icon"
                                 onClick={onClose}
+                                data-testid="close-cart-btn"
                                 className="w-8 h-8 data-[theme=light]:text-slate-700 data-[theme=light]:hover:bg-slate-200"
                             >
                                 <X className="w-4 h-4" />
@@ -175,6 +185,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
                                     onUpdateQuantity={(qty) => updateQuantity(item.id, qty)}
                                     onRemove={() => removeItem(item.id)}
                                     onEdit={onEditItem ? () => onEditItem(item) : undefined}
+                                    onRequestAuthorization={onRequestAuthorization}
                                     index={index}
                                 />
                             ))
@@ -190,7 +201,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
                             'data-[theme=luxury]:bg-black/50 data-[theme=luxury]:border-amber-500/30',
                         )}>
                             {/* Subtotal */}
-                            <div className="flex justify-between text-sm">
+                            <div data-testid="cart-subtotal" className="flex justify-between text-sm">
                                 <span data-theme={theme} className={cn(
                                     'font-medium text-slate-400',
                                     'data-[theme=light]:text-slate-700',
@@ -200,14 +211,25 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
 
                             {/* Discount (if any) */}
                             {parseFloat(discountAmount) > 0 && (
-                                <div className="flex justify-between text-sm">
+                                <div data-testid="cart-discount" className="flex justify-between text-sm">
                                     <span className="text-green-400">{t('summary.discount')}</span>
                                     <span className="text-green-400">-<PriceDisplay value={discountAmount} size="sm" /></span>
                                 </div>
                             )}
 
+                            {/* Service Charge (DINE_IN only) */}
+                            {parseFloat(getServiceCharge()) > 0 && (
+                                <div data-testid="cart-service-charge" className="flex justify-between text-sm">
+                                    <span data-theme={theme} className={cn(
+                                        'text-slate-500',
+                                        'data-[theme=light]:text-slate-600',
+                                    )}>{t('summary.serviceCharge', 'Service Charge')} (12%)</span>
+                                    <PriceDisplay value={getServiceCharge()} size="sm" variant="muted" />
+                                </div>
+                            )}
+
                             {/* Tax */}
-                            <div className="flex justify-between text-sm">
+                            <div data-testid="cart-tax" className="flex justify-between text-sm">
                                 <span data-theme={theme} className={cn(
                                     'text-slate-500',
                                     'data-[theme=light]:text-slate-600',
@@ -227,7 +249,7 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
                             )}
 
                             {/* Total */}
-                            <div data-theme={theme} className={cn(
+                            <div data-testid="cart-total" data-theme={theme} className={cn(
                                 'pt-2 border-t flex justify-between',
                                 'border-slate-700',
                                 'data-[theme=light]:border-slate-300',
@@ -255,6 +277,28 @@ export function CartPanel({ isExpanded, onClose, onEditItem, onCheckout }: CartP
                                         <div>• +{blockers.length - 2} more...</div>
                                     )}
                                 </div>
+                            )}
+
+                            {/* Fire to Kitchen Button (dine-in only) */}
+                            {showFireButton && onFireToKitchen && (
+                                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                                    <Button
+                                        variant="secondary"
+                                        onClick={onFireToKitchen}
+                                        className={cn(
+                                            'w-full',
+                                            'bg-gradient-to-r from-orange-500/20 to-orange-600/20',
+                                            'border border-orange-500/50',
+                                            'hover:from-orange-500/30 hover:to-orange-600/30',
+                                            'text-orange-400 font-semibold',
+                                            'data-[theme=light]:text-orange-600',
+                                        )}
+                                        size="sm"
+                                    >
+                                        <ChefHat className="w-4 h-4 me-2" />
+                                        {t('fireToKitchen', 'Fire to Kitchen')}
+                                    </Button>
+                                </motion.div>
                             )}
 
                             {/* Checkout Button */}
@@ -294,10 +338,11 @@ interface CartItemCardProps {
     onUpdateQuantity: (qty: number) => void;
     onRemove: () => void;
     onEdit?: () => void;
+    onRequestAuthorization?: (request: PinAuthorizationRequest) => void;
     index: number;
 }
 
-function CartItemCard({ item, language, theme, onUpdateQuantity, onRemove, onEdit, index }: CartItemCardProps) {
+function CartItemCard({ item, language, theme, onUpdateQuantity, onRemove, onEdit, onRequestAuthorization, index }: CartItemCardProps) {
     const { t } = useTranslation('pos');
     const qty = parseFloat(item.quantity);
     const [inputValue, setInputValue] = useState(String(qty));
@@ -354,6 +399,7 @@ function CartItemCard({ item, language, theme, onUpdateQuantity, onRemove, onEdi
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: language === 'ar' ? -50 : 50 }}
             transition={{ delay: index * 0.03 }}
+            data-testid="cart-item"
             data-theme={theme}
             className={cn(
                 'rounded-lg p-2 border',
@@ -417,20 +463,28 @@ function CartItemCard({ item, language, theme, onUpdateQuantity, onRemove, onEdi
 
                         {/* Price - Show quantity x unit price = subtotal */}
                         <div className="text-end flex-shrink-0">
-                            <p data-theme={theme} className={cn(
-                                'text-xs font-bold',
-                                'text-cyan-400',
-                                'data-[theme=light]:text-cyan-700',
-                                'data-[theme=luxury]:text-amber-400',
-                            )}>
+                            <p
+                                data-testid="item-price"
+                                data-theme={theme}
+                                className={cn(
+                                    'text-xs font-bold',
+                                    'text-cyan-400',
+                                    'data-[theme=light]:text-cyan-700',
+                                    'data-[theme=luxury]:text-amber-400',
+                                )}
+                            >
                                 <PriceDisplay value={item.lineTotal} size="sm" variant="primary" />
                             </p>
                             {/* Show qty x price breakdown */}
-                            <p data-theme={theme} className={cn(
-                                'text-[10px]',
-                                'text-slate-500',
-                                'data-[theme=light]:text-slate-400',
-                            )}>
+                            <p
+                                data-testid="line-price"
+                                data-theme={theme}
+                                className={cn(
+                                    'text-[10px]',
+                                    'text-slate-500',
+                                    'data-[theme=light]:text-slate-400',
+                                )}
+                            >
                                 {qty} × {item.product.salePrice}
                             </p>
                         </div>
@@ -616,20 +670,29 @@ function CartItemCard({ item, language, theme, onUpdateQuantity, onRemove, onEdi
                     </motion.button>
                 </div>
 
-                {/* Remove Button */}
-                <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={onRemove}
-                    data-theme={theme}
-                    className={cn(
-                        'w-6 h-6 rounded flex items-center justify-center transition-colors',
-                        'hover:bg-red-500/20 text-red-400',
-                        'data-[theme=light]:hover:bg-red-100 data-[theme=light]:text-red-500',
-                    )}
-                >
-                    <X className="w-3.5 h-3.5" />
-                </motion.button>
+                {/* Remove/Void Button */}
+                {onRequestAuthorization ? (
+                    <VoidItemButton
+                        item={item}
+                        onVoid={(itemId, reason) => onRemove()}
+                        onRequestAuthorization={onRequestAuthorization}
+                        size="sm"
+                    />
+                ) : (
+                    <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={onRemove}
+                        data-theme={theme}
+                        className={cn(
+                            'w-6 h-6 rounded flex items-center justify-center transition-colors',
+                            'hover:bg-red-500/20 text-red-400',
+                            'data-[theme=light]:hover:bg-red-100 data-[theme=light]:text-red-500',
+                        )}
+                    >
+                        <X className="w-3.5 h-3.5" />
+                    </motion.button>
+                )}
             </div>
         </motion.div>
     );

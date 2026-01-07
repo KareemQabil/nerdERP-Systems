@@ -8,9 +8,9 @@ import {
     ConnectedSocket,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { Logger, UseGuards } from '@nestjs/common';
+import { Logger, Inject, forwardRef } from '@nestjs/common';
 import { KitchenService } from './services/kitchen.service';
-import { KitchenTicket, TicketStatus } from './entities/kitchen-ticket.entity';
+import { KitchenTicket } from './entities/kitchen-ticket.entity';
 
 /**
  * Kitchen WebSocket Gateway
@@ -49,7 +49,7 @@ export class KitchenGateway implements OnGatewayConnection, OnGatewayDisconnect 
     private readonly stationSubscriptions = new Map<string, Set<string>>();
     private readonly orderSubscriptions = new Map<string, Set<string>>();
 
-    constructor(private readonly kitchenService: KitchenService) { }
+    constructor(@Inject(forwardRef(() => KitchenService)) private readonly kitchenService: KitchenService) { }
 
     async handleConnection(client: Socket) {
         this.logger.debug(`Client connected: ${client.id}`);

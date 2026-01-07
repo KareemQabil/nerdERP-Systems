@@ -27,6 +27,7 @@ interface SessionState {
     session: RegisterSession | null;
     deviceId: string;
     warehouseId: string;
+    useBlindClose: boolean; // Phase 1: If true, cashiers don't see expected balance
 
     // Loading states
     isLoading: boolean;
@@ -38,8 +39,10 @@ interface SessionState {
     initializeSession: () => Promise<void>;
     openSession: (openingBalance: number, userId?: string) => Promise<RegisterSession>;
     closeSession: (closingBalance: number, notes?: string) => Promise<void>;
+    closeSessionBlind: (countedCash: number, notes?: string) => Promise<void>;
     refreshSession: () => Promise<void>;
     clearError: () => void;
+    setBlindClose: (enabled: boolean) => void;
 
     // Getters
     isSessionOpen: () => boolean;
@@ -59,6 +62,7 @@ export const useSessionStore = create<SessionState>()(
                 session: null,
                 deviceId: DEFAULT_DEVICE_ID,
                 warehouseId: DEFAULT_WAREHOUSE_ID,
+                useBlindClose: true, // Phase 1: Default to blind close
                 isLoading: false,
                 isOpening: false,
                 isClosing: false,
@@ -164,6 +168,39 @@ export const useSessionStore = create<SessionState>()(
                 },
 
                 /**
+                 * Close session using blind close mode
+                 * Cashier doesn't see expected balance
+                 */
+                closeSessionBlind: async (countedCash: number, notes?: string) => {
+                    const { session } = get();
+                    if (!session) {
+                        throw new Error('No active session to close');
+                    }
+
+                    set({ isClosing: true, error: null });
+
+                    try {
+                        await registerSessionService.closeSessionBlind(session.id, {
+                            actualBalance: countedCash.toFixed(3),
+                            notes,
+                        });
+                        set({ session: null, isClosing: false });
+                    } catch (error) {
+                        console.error('[Session] Failed to close (blind):', error);
+                        set({
+                            isClosing: false,
+                            error: 'Failed to close session'
+                        });
+                        throw error;
+                    }
+                },
+
+                /**
+                 * Toggle blind close mode
+                 */
+                setBlindClose: (enabled: boolean) => set({ useBlindClose: enabled }),
+
+                /**
                  * Clear error state
                  */
                 clearError: () => set({ error: null }),
@@ -196,6 +233,7 @@ export const useSessionStore = create<SessionState>()(
                 partialize: (state) => ({
                     deviceId: state.deviceId,
                     warehouseId: state.warehouseId,
+                    useBlindClose: state.useBlindClose,
                     // Don't persist session - always check on load
                 }),
             }
@@ -220,7 +258,10 @@ export function useSession() {
     const getWarehouseId = useSessionStore((s) => s.getWarehouseId);
     const openSession = useSessionStore((s) => s.openSession);
     const closeSession = useSessionStore((s) => s.closeSession);
+    const closeSessionBlind = useSessionStore((s) => s.closeSessionBlind);
     const initializeSession = useSessionStore((s) => s.initializeSession);
+    const useBlindClose = useSessionStore((s) => s.useBlindClose);
+    const setBlindClose = useSessionStore((s) => s.setBlindClose);
 
     return {
         session,
@@ -231,6 +272,10 @@ export function useSession() {
         warehouseId: getWarehouseId(),
         openSession,
         closeSession,
+        closeSessionBlind,
         initializeSession,
+        useBlindClose,
+        setBlindClose,
     };
 }
+

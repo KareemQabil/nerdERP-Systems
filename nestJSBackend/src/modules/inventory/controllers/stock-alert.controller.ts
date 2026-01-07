@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query } from '@nestjs/common';
 import { StockAlertService } from '../services/stock-alert.service';
 
-@Controller('api/v1/inventory/alerts')
+@Controller('inventory/alerts')
 export class StockAlertController {
     constructor(private readonly alertService: StockAlertService) { }
 

@@ -175,6 +175,7 @@ export const orderTypes: OrderTypeOption[] = [
     { id: 'dine-in', labelAr: 'في المطعم', labelEn: 'Dine-in', icon: UtensilsCrossed },
     { id: 'takeaway', labelAr: 'سفري', labelEn: 'Takeaway', icon: CarFront },
     { id: 'pickup', labelAr: 'استلام', labelEn: 'Pickup', icon: Store },
+    { id: 'delivery', labelAr: 'توصيل', labelEn: 'Delivery', icon: CarFront },
 ];
 
 // Helper to convert MockProduct to ProductInfo for cart

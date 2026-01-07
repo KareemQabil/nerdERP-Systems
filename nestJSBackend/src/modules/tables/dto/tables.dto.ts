@@ -63,6 +63,12 @@ export class UpdateTableStatusDto {
     @IsOptional()
     @IsUUID()
     currentOrderId?: string;
+
+    @ApiProperty({ required: false, description: 'H-POS: Customer count when table is occupied' })
+    @IsOptional()
+    @IsNumber()
+    @Min(1)
+    customerCount?: number;
 }
 
 export class CreateReservationDto {

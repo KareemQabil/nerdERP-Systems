@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { SalesService } from '../services/sales.service';
 import { VoidOperationService } from '../services/void-operation.service';
 import { CreateOrderDto } from '../dto/create-order.dto';
@@ -33,6 +33,46 @@ export class SalesController {
   @ApiResponse({ status: 201, type: SalesOrder, description: 'Order created successfully' })
   async createOrder(@Body() createDto: CreateOrderDto): Promise<SalesOrder> {
     return await this.salesService.createOrder(createDto);
+  }
+
+  @Get('orders/:orderId')
+  @ApiOperation({ summary: 'Get order by ID with invoice data' })
+  @ApiResponse({ status: 200, type: SalesOrder, description: 'Order retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Order not found' })
+  async getOrderById(@Param('orderId') orderId: string) {
+    const order = await this.salesService.getOrderById(orderId);
+    return {
+      success: true,
+      data: order,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Get('orders')
+  @ApiOperation({ summary: 'Get orders with optional filters' })
+  @ApiQuery({ name: 'status', required: false, enum: OrderStatus })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'order', required: false, enum: ['ASC', 'DESC'] })
+  @ApiQuery({ name: 'storeId', required: false, type: String })
+  @ApiResponse({ status: 200, description: 'Orders retrieved successfully' })
+  async getOrders(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('order') order?: 'ASC' | 'DESC',
+    @Query('storeId') storeId?: string,
+  ) {
+    const orders = await this.salesService.findOrders({
+      status: status as OrderStatus,
+      limit: limit ? parseInt(limit, 10) : 50,
+      orderDirection: order || 'DESC',
+      storeId,
+    });
+
+    return {
+      success: true,
+      data: orders,
+      timestamp: new Date().toISOString(),
+    };
   }
 
   // ==========================================================================

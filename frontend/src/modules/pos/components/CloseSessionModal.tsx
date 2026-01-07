@@ -14,7 +14,8 @@ interface CloseSessionModalProps {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: (closingBalance: number, notes?: string) => Promise<void>;
-    expectedBalance: number; // Expected cash in drawer
+    expectedBalance?: number; // Made optional for blind close
+    isBlindClose?: boolean;   // Hide expected balance from cashier
     isLoading?: boolean;
     error?: string | null;
 }
@@ -26,7 +27,8 @@ export function CloseSessionModal({
     isOpen,
     onClose,
     onConfirm,
-    expectedBalance,
+    expectedBalance = 0,
+    isBlindClose = false,
     isLoading = false,
     error,
 }: CloseSessionModalProps) {
@@ -35,11 +37,11 @@ export function CloseSessionModal({
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Calculate discrepancy
-    const discrepancy = actualBalance
+    // Calculate discrepancy (only when not blind close)
+    const discrepancy = !isBlindClose && actualBalance
         ? new Decimal(actualBalance).minus(expectedBalance).toNumber()
         : 0;
-    const hasDiscrepancy = Math.abs(discrepancy) > 0.01; // Allow 1 cent tolerance
+    const hasDiscrepancy = !isBlindClose && Math.abs(discrepancy) > 0.01; // Allow 1 cent tolerance
 
     const handleSubmit = async () => {
         const balance = parseFloat(actualBalance) || 0;
@@ -48,8 +50,9 @@ export function CloseSessionModal({
             return; // Validation: no negative amounts
         }
 
-        // Require notes if there's a discrepancy > 5 SAR
-        if (Math.abs(discrepancy) > 5 && !notes.trim()) {
+        // Require notes if there's a large discrepancy (when not blind close)
+        // For blind close, notes are always recommended
+        if (!isBlindClose && Math.abs(discrepancy) > 5 && !notes.trim()) {
             return; // Validation failed - need notes for large discrepancy
         }
 
@@ -133,20 +136,37 @@ export function CloseSessionModal({
                             </div>
                         )}
 
-                        {/* Expected Balance (Read-only) */}
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium text-gray-400">
-                                {t('session.expectedBalance', 'Expected Balance')} (SAR)
-                            </label>
-                            <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg">
-                                <div className="flex items-center gap-2">
-                                    <Coins className="w-5 h-5 text-gray-400" />
-                                    <span className="text-2xl font-bold text-gray-300">
-                                        {expectedBalance.toFixed(2)}
-                                    </span>
+                        {/* Expected Balance (Read-only) - Hidden in blind close mode */}
+                        {!isBlindClose && (
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-gray-400">
+                                    {t('session.expectedBalance', 'Expected Balance')} (SAR)
+                                </label>
+                                <div className="px-4 py-3 bg-white/5 border border-white/10 rounded-lg">
+                                    <div className="flex items-center gap-2">
+                                        <Coins className="w-5 h-5 text-gray-400" />
+                                        <span className="text-2xl font-bold text-gray-300">
+                                            {expectedBalance.toFixed(2)}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Blind Close Notice */}
+                        {isBlindClose && (
+                            <div className="flex items-center gap-3 p-3 bg-blue-500/20 border border-blue-500/30 rounded-lg">
+                                <Coins className="w-5 h-5 text-blue-400 flex-shrink-0" />
+                                <div>
+                                    <p className="text-sm font-medium text-blue-300">
+                                        {t('session.blindCloseMode', 'Blind Close Mode')}
+                                    </p>
+                                    <p className="text-xs text-blue-400/80">
+                                        {t('session.blindCloseHint', 'Count all cash in the drawer. Expected balance will be verified by manager.')}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Actual Balance Input */}
                         <div className="space-y-2">
@@ -168,8 +188,8 @@ export function CloseSessionModal({
                             </p>
                         </div>
 
-                        {/* Discrepancy Warning */}
-                        {actualBalance && hasDiscrepancy && (
+                        {/* Discrepancy Warning - Hidden in blind close mode */}
+                        {!isBlindClose && actualBalance && hasDiscrepancy && (
                             <div className={`flex items-center gap-3 p-3 rounded-lg border ${discrepancy > 0
                                 ? 'bg-green-500/20 border-green-500/30'
                                 : 'bg-red-500/20 border-red-500/30'
@@ -229,7 +249,7 @@ export function CloseSessionModal({
                                 isLoading ||
                                 isSubmitting ||
                                 !actualBalance ||
-                                (Math.abs(discrepancy) > 5 && !notes.trim())
+                                (!isBlindClose && Math.abs(discrepancy) > 5 && !notes.trim())
                             }
                         >
                             {isLoading || isSubmitting ? (

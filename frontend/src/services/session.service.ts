@@ -46,6 +46,28 @@ export interface SessionBalance {
     expectedBalance: string;
 }
 
+export interface BlindCloseDto {
+    actualBalance: string; // Cashier's blind count - matches backend DTO field name
+    notes?: string;
+}
+
+export interface SessionReport {
+    sessionId: string;
+    openingBalance: string;
+    closingBalance: string;
+    expectedBalance: string;
+    discrepancy: string;
+    totalCashSales: string;
+    totalCardSales: string;
+    totalWalletSales: string;
+    totalRefunds: string;
+    orderCount: number;
+    voidCount: number;
+    isBlindClose: boolean;
+    reviewedAt?: string;
+    reviewedByUserId?: string;
+}
+
 // =============================================================================
 // SESSION SERVICE
 // =============================================================================
@@ -146,6 +168,33 @@ class RegisterSessionService {
             `${this.endpoint}/${sessionId}/petty-cash`,
             { amount, reason }
         );
+    }
+
+    // =========================================================================
+    // Blind Close Workflow
+    // =========================================================================
+
+    /**
+     * Close session using blind close (cashier doesn't see expected balance)
+     * Discrepancy is calculated server-side and only visible to managers
+     */
+    async closeSessionBlind(sessionId: string, dto: BlindCloseDto): Promise<RegisterSession> {
+        const response = await apiClient.post<ApiResponse<RegisterSession>>(
+            `${this.endpoint}/${sessionId}/close-blind`,
+            dto
+        );
+        return response.data.data;
+    }
+
+    /**
+     * Get session report (manager only)
+     * Shows full breakdown including expected balance and discrepancy
+     */
+    async getSessionReport(sessionId: string): Promise<SessionReport> {
+        const response = await apiClient.get<ApiResponse<SessionReport>>(
+            `${this.endpoint}/${sessionId}/report`
+        );
+        return response.data.data;
     }
 }
 

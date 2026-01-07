@@ -156,6 +156,7 @@ export function DiscountModal({
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.9, opacity: 0 }}
                     transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                    data-testid="discount-modal"
                     data-theme={theme}
                     className={cn(
                         'relative w-full max-w-md rounded-2xl shadow-2xl overflow-hidden',
@@ -221,6 +222,7 @@ export function DiscountModal({
                         >
                             <button
                                 onClick={() => setDiscountType('PERCENTAGE')}
+                                data-testid="discount-type-percentage"
                                 data-theme={theme}
                                 className={cn(
                                     'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all',
@@ -234,6 +236,7 @@ export function DiscountModal({
                             </button>
                             <button
                                 onClick={() => setDiscountType('FIXED')}
+                                data-testid="discount-type-fixed"
                                 data-theme={theme}
                                 className={cn(
                                     'flex-1 flex items-center justify-center gap-2 py-2 rounded-lg font-medium transition-all',
@@ -256,6 +259,7 @@ export function DiscountModal({
                                         whileHover={{ scale: 1.05 }}
                                         whileTap={{ scale: 0.95 }}
                                         onClick={() => handleQuickPercentage(pct)}
+                                        data-testid={`discount-quick-${pct}`}
                                         disabled={pct > maxPercentage}
                                         data-theme={theme}
                                         className={cn(
@@ -279,6 +283,7 @@ export function DiscountModal({
                         {/* Value Input */}
                         <div className="relative">
                             <Input
+                                data-testid="discount-value-input"
                                 type="number"
                                 value={value}
                                 onChange={(e) => setValue(e.target.value)}
@@ -409,6 +414,7 @@ export function DiscountModal({
                         </Button>
                         <Button
                             variant="primary"
+                            data-testid="apply-discount-btn"
                             className={cn(
                                 'flex-1',
                                 'bg-gradient-to-r from-green-500 to-emerald-600',

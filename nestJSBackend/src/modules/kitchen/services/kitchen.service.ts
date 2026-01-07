@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In } from 'typeorm';
 import { Transactional } from 'typeorm-transactional';
 import { KitchenStation } from '../entities/kitchen-station.entity';
 import { KitchenTicket, KitchenTicketItem, TicketStatus, TicketPriority } from '../entities/kitchen-ticket.entity';
@@ -12,6 +12,8 @@ import {
     UpdateTicketStatusDto,
     BumpTicketDto,
 } from '../dto/kitchen.dto';
+import { KitchenGateway } from '../kitchen.gateway';
+import { InventoryService } from '../../inventory/services/inventory.service';
 
 @Injectable()
 export class KitchenService {
@@ -26,6 +28,11 @@ export class KitchenService {
         private readonly orderRepo: Repository<SalesOrder>,
         @InjectRepository(OrderItem)
         private readonly orderItemRepo: Repository<OrderItem>,
+        @Inject(forwardRef(() => KitchenGateway))
+        private readonly kitchenGateway: KitchenGateway,
+        // Phase 1: Inventory integration for stock commitment on fire
+        @Inject(forwardRef(() => InventoryService))
+        private readonly inventoryService: InventoryService,
     ) { }
 
     // ==================== STATIONS ====================
@@ -343,6 +350,18 @@ export class KitchenService {
                 // Update order item kitchen status
                 item.kitchenStatus = 'FIRED';
                 item.firedToKitchenAt = now;
+
+                // Phase 1: Commit stock reservation on fire (hard deduct)
+                if (item.stockReservationId && !item.stockCommitted) {
+                    try {
+                        await this.inventoryService.commitReservation(item.stockReservationId);
+                        item.stockCommitted = true;
+                    } catch (error: any) {
+                        console.warn(`[KitchenService] Stock commit failed for item ${item.productName}: ${error.message}`);
+                        // Continue anyway - don't block kitchen fire
+                    }
+                }
+
                 await this.orderItemRepo.save(item);
             }
 
@@ -354,6 +373,11 @@ export class KitchenService {
             order.status = OrderStatus.FIRED_TO_KITCHEN;
             order.firedToKitchenAt = now;
             await this.orderRepo.save(order);
+        }
+
+        // Broadcast ticket created events via WebSocket
+        for (const ticket of tickets) {
+            this.kitchenGateway.broadcastTicketCreated(ticket);
         }
 
         return tickets;
@@ -406,6 +430,14 @@ export class KitchenService {
         }
 
         const updatedTicketItem = await this.ticketItemRepo.save(ticketItem);
+
+        // Broadcast item status update via WebSocket
+        this.kitchenGateway.server.to(`station:${ticketItem.ticket.station?.id}`).emit('kitchen:item-updated', {
+            ticketId: ticketItem.ticket.id,
+            itemId: ticketItem.id,
+            status: status,
+            updatedAt: new Date().toISOString(),
+        });
 
         // Update corresponding order item kitchen status
         await this.orderItemRepo.update(
@@ -507,5 +539,265 @@ export class KitchenService {
         }
 
         return await query.orderBy('ticket.sentAt', 'ASC').getMany();
+    }
+
+    // ==================== TICKET MODIFICATION ====================
+
+    /**
+     * Modify existing kitchen ticket with added/removed/modified items
+     *
+     * Handles post-fire order modifications:
+     * - Adding items to an existing ticket
+     * - Removing/voiding items from a ticket
+     * - Modifying item quantities or notes
+     *
+     * @param orderId The order ID to modify tickets for
+     * @param modifications The modifications to apply
+     * @returns Updated tickets
+     */
+    @Transactional()
+    async modifyOrderTicket(
+        orderId: string,
+        modifications: {
+            addedItems: Array<{ orderItemId: string; quantity: number }>;
+            removedItems: Array<{ orderItemId: string; reason: string }>;
+            modifiedItems: Array<{ orderItemId: string; newQuantity: number; newNotes?: string }>;
+        },
+    ): Promise<KitchenTicket[]> {
+        const updatedTickets: KitchenTicket[] = [];
+
+        // Handle removed items - send VOID notification to kitchen
+        for (const removed of modifications.removedItems) {
+            const ticketItem = await this.ticketItemRepo.findOne({
+                where: { orderItemId: removed.orderItemId },
+                relations: ['ticket', 'ticket.station'],
+            });
+
+            if (ticketItem && ticketItem.ticket) {
+                const ticket = ticketItem.ticket;
+
+                // Check if item is already being prepared
+                if (ticketItem.isPrepared) {
+                    throw new BadRequestException({
+                        code: 'KITCHEN_006',
+                        messageKey: 'CANNOT_VOID_PREPARED_ITEM',
+                        message: 'Cannot void item that is already prepared. Recall from kitchen first.',
+                    });
+                }
+
+                // Mark ticket item as voided
+                ticketItem.isVoided = true;
+                ticketItem.voidedAt = new Date();
+                ticketItem.voidReason = removed.reason;
+                await this.ticketItemRepo.save(ticketItem);
+
+                // Broadcast item voided to kitchen display
+                this.kitchenGateway.server.to(`station:${ticket.station?.id}`).emit('kitchen:item-voided', {
+                    ticketId: ticket.id,
+                    ticketItemId: ticketItem.id,
+                    orderItemId: removed.orderItemId,
+                    reason: removed.reason,
+                    voidedAt: ticketItem.voidedAt,
+                });
+
+                // Update ticket status if all items voided
+                await this.updateTicketStatusBasedOnItems(ticket.id);
+
+                updatedTickets.push(ticket);
+            }
+        }
+
+        // Handle added items - send ADD notification to kitchen
+        for (const added of modifications.addedItems) {
+            // Fetch order item with product info
+            const orderItem = await this.orderItemRepo.findOne({
+                where: { id: added.orderItemId },
+                relations: ['product'],
+            });
+
+            if (!orderItem || !orderItem.product) {
+                continue;
+            }
+
+            // Get stations for this product
+            const stations = orderItem.product.kitchenStationIds || [];
+            if (stations.length === 0) {
+                continue;
+            }
+
+            // For each station, find or create ticket
+            for (const stationId of stations) {
+                // Find existing active ticket for this order and station
+                let ticket = await this.ticketRepo.findOne({
+                    where: {
+                        orderId,
+                        status: In([TicketStatus.NEW, TicketStatus.IN_PROGRESS]),
+                    },
+                    relations: ['station'],
+                });
+
+                if (!ticket) {
+                    // Create new ticket for this station
+                    const station = await this.stationRepo.findOne({ where: { id: stationId } });
+                    if (!station) continue;
+
+                    const order = await this.orderRepo.findOne({ where: { id: orderId } });
+                    if (!order) continue;
+
+                    ticket = this.ticketRepo.create({
+                        station,
+                        orderId,
+                        ticketNumber: `T-${order.orderNumber}-${station.stationCode}`,
+                        orderNumber: order.orderNumber,
+                        status: TicketStatus.NEW,
+                        priority: TicketPriority.NORMAL,
+                        sentAt: new Date(),
+                        isModified: true, // Mark as modified since items were added
+                    });
+                    ticket = await this.ticketRepo.save(ticket);
+                }
+
+                // Add ticket item
+                const modifiers = Array.isArray(orderItem.modifiers)
+                    ? orderItem.modifiers.map((m: any) => m.modifierName || String(m)).filter(Boolean)
+                    : [];
+
+                const ticketItem = this.ticketItemRepo.create({
+                    ticket,
+                    orderItemId: orderItem.id,
+                    productId: orderItem.product.id,
+                    productName: orderItem.productName,
+                    quantity: added.quantity,
+                    modifiers,
+                    notes: orderItem.specialInstructions || '',
+                    isPrepared: false,
+                    isAdded: true, // Mark as added modification
+                });
+
+                await this.ticketItemRepo.save(ticketItem);
+
+                // Update order item kitchen status
+                orderItem.kitchenStatus = 'FIRED';
+                orderItem.firedToKitchenAt = new Date();
+                await this.orderItemRepo.save(orderItem);
+
+                // Broadcast item added to kitchen display
+                this.kitchenGateway.server.to(`station:${stationId}`).emit('kitchen:item-added', {
+                    ticketId: ticket.id,
+                    ticketItemId: ticketItem.id,
+                    orderItemId: orderItem.id,
+                    productName: orderItem.productName,
+                    quantity: added.quantity,
+                    modifiers,
+                    notes: orderItem.specialInstructions,
+                    addedAt: new Date(),
+                });
+
+                updatedTickets.push(ticket);
+            }
+        }
+
+        // Handle modified items - update quantity or notes
+        for (const modified of modifications.modifiedItems) {
+            const ticketItem = await this.ticketItemRepo.findOne({
+                where: { orderItemId: modified.orderItemId },
+                relations: ['ticket', 'ticket.station'],
+            });
+
+            if (ticketItem && ticketItem.ticket) {
+                // Check if item is already being prepared
+                if (ticketItem.isPrepared) {
+                    throw new BadRequestException({
+                        code: 'KITCHEN_007',
+                        messageKey: 'CANNOT_MODIFY_PREPARED_ITEM',
+                        message: 'Cannot modify item that is already prepared.',
+                    });
+                }
+
+                // Update quantity and/or notes
+                ticketItem.quantity = modified.newQuantity;
+                if (modified.newNotes !== undefined) {
+                    ticketItem.notes = modified.newNotes;
+                }
+                ticketItem.isModified = true; // Mark as modified
+                await this.ticketItemRepo.save(ticketItem);
+
+                // Broadcast item modified to kitchen display
+                this.kitchenGateway.server.to(`station:${ticketItem.ticket.station?.id}`).emit('kitchen:item-modified', {
+                    ticketId: ticketItem.ticket.id,
+                    ticketItemId: ticketItem.id,
+                    orderItemId: modified.orderItemId,
+                    newQuantity: modified.newQuantity,
+                    newNotes: modified.newNotes,
+                    modifiedAt: new Date(),
+                });
+
+                updatedTickets.push(ticketItem.ticket);
+            }
+        }
+
+        return updatedTickets;
+    }
+
+    /**
+     * Recall a ticket from kitchen (emergency stop)
+     *
+     * Used when an order needs to be cancelled after being fired.
+     * Marks the ticket as RECALLED and notifies kitchen staff.
+     *
+     * @param orderId The order ID to recall
+     * @param reason The reason for recall
+     * @returns Updated tickets
+     */
+    @Transactional()
+    async recallTicketFromKitchen(
+        orderId: string,
+        reason: string,
+    ): Promise<KitchenTicket[]> {
+        const tickets = await this.ticketRepo.find({
+            where: { orderId },
+            relations: ['station', 'items'],
+        });
+
+        if (tickets.length === 0) {
+            throw new NotFoundException({
+                code: 'KITCHEN_008',
+                messageKey: 'NO_TICKETS_FOUND',
+                message: 'No active kitchen tickets found for this order',
+            });
+        }
+
+        const recalledTickets: KitchenTicket[] = [];
+
+        for (const ticket of tickets) {
+            // Only recall active tickets
+            if (ticket.status === TicketStatus.NEW || ticket.status === TicketStatus.IN_PROGRESS) {
+                ticket.status = TicketStatus.RECALLED;
+                ticket.recalledAt = new Date();
+                ticket.recallReason = reason;
+
+                const savedTicket = await this.ticketRepo.save(ticket);
+
+                // Broadcast recall notification to kitchen
+                this.kitchenGateway.server.to(`station:${ticket.station?.id}`).emit('kitchen:ticket-recalled', {
+                    ticketId: ticket.id,
+                    orderNumber: ticket.orderNumber,
+                    reason: reason,
+                    recalledAt: ticket.recalledAt,
+                });
+
+                recalledTickets.push(savedTicket);
+            }
+        }
+
+        // Update order items kitchen status back to PENDING
+        await this.orderItemRepo
+            .createQueryBuilder()
+            .update(OrderItem)
+            .set({ kitchenStatus: null as any, firedToKitchenAt: null as any })
+            .where('order_id = :orderId', { orderId })
+            .execute();
+
+        return recalledTickets;
     }
 }

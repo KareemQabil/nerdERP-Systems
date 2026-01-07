@@ -43,6 +43,9 @@ export class Table extends AbstractEntity {
     @Column({ name: 'table_number' })
     tableNumber: string;
 
+    @Column({ name: 'zone_id', nullable: true })
+    zoneId: string;
+
     @ManyToOne(() => TableZone, { nullable: true })
     @JoinColumn({ name: 'zone_id' })
     zone: TableZone;
@@ -74,6 +77,18 @@ export class Table extends AbstractEntity {
 
     @Column({ name: 'current_order_id', nullable: true })
     currentOrderId: string;
+
+    /**
+     * H-POS: Track actual customer count when table is occupied
+     */
+    @Column({ name: 'current_customer_count', nullable: true })
+    currentCustomerCount: number;
+
+    /**
+     * H-POS: When the table was occupied (for duration tracking)
+     */
+    @Column({ name: 'occupied_at', type: 'timestamp with time zone', nullable: true })
+    occupiedAt: Date;
 
     @Column({ name: 'is_active', default: true })
     isActive: boolean;

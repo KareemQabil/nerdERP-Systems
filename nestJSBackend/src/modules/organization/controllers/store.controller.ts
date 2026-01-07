@@ -92,6 +92,20 @@ export class StoreController {
         };
     }
 
+    /**
+     * Get complete POS configuration for H-POS
+     * Returns all POS settings with defaults for unconfigured values
+     */
+    @Get(':id/configurations/pos')
+    async getPOSConfig(@Param('id') storeId: string) {
+        const posConfig = await this.configService.getPOSConfig(storeId);
+        return {
+            success: true,
+            data: posConfig,
+            timestamp: new Date().toISOString(),
+        };
+    }
+
     @Get(':id/configurations/:key')
     async getConfiguration(
         @Param('id') storeId: string,

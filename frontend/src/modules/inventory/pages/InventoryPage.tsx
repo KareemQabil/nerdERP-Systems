@@ -25,6 +25,7 @@ import {
 import { cn } from '@/lib/utils';
 import { useInventoryStore } from '@/stores/inventory.store';
 import { useSettingsStore } from '@/stores/settings.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { Button } from '@/components/ui';
 import { formatCurrency } from '@/lib/decimal';
 
@@ -33,6 +34,15 @@ import { ItemMasterModal } from '../components/modals/ItemMasterModal';
 import { PurchaseInvoiceModal } from '../components/modals/PurchaseInvoiceModal';
 import { StockAdjustmentModal } from '../components/modals/StockAdjustmentModal';
 import { productService, type Product } from '@/services/product.service';
+
+// Import batch components
+import { BatchesTable } from '../components/BatchesTable';
+import { BatchDetailsModal } from '../components/BatchDetailsModal';
+import { ExpiryCalendar } from '../components/ExpiryCalendar';
+import { MovementsTable } from '../components/MovementsTable';
+import { MovementDetailsModal } from '../components/MovementDetailsModal';
+import { AlertsDashboard } from '../components/AlertsDashboard';
+import { inventoryService } from '@/services/inventory.service';
 
 // =============================================================================
 // Types
@@ -87,7 +97,15 @@ export function InventoryPage() {
     // Products tab state
     const [products, setProducts] = useState<Product[]>([]);
     const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-    const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
+
+    // Batches tab state
+    const [selectedBatch, setSelectedBatch] = useState<InventoryBatch | null>(null);
+    const [isBatchDetailsOpen, setIsBatchDetailsOpen] = useState(false);
+    const [batchViewMode, setBatchViewMode] = useState<'table' | 'calendar'>('table');
+
+    // Movements tab state
+    const [selectedMovement, setSelectedMovement] = useState<StockMove | null>(null);
+    const [isMovementDetailsOpen, setIsMovementDetailsOpen] = useState(false);
 
     // Tabs configuration
     const tabs: Tab[] = [
@@ -95,7 +113,7 @@ export function InventoryPage() {
         { id: 'products', labelKey: 'tabs.products', icon: Layers },
         { id: 'batches', labelKey: 'tabs.batches', icon: Boxes },
         { id: 'movements', labelKey: 'tabs.movements', icon: History },
-        { id: 'alerts', labelKey: 'tabs.alerts', icon: AlertTriangle, count: (alerts || []).filter(a => !a.isAcknowledged).length },
+        { id: 'alerts', labelKey: 'tabs.alerts', icon: AlertTriangle, count: Array.isArray(alerts) ? alerts.filter(a => !a.isAcknowledged).length : 0 },
     ];
 
     // Initialize data
@@ -149,6 +167,7 @@ export function InventoryPage() {
 
     return (
         <div
+            data-testid="inventory-page"
             data-theme={theme}
             className={cn(
                 'min-h-screen bg-gradient-to-br p-4 md:p-6',
@@ -405,8 +424,7 @@ export function InventoryPage() {
                             isLoading={isLoadingProducts}
                             theme={theme}
                             isRTL={isRTL}
-                            onAddStock={(productId) => {
-                                setSelectedProductId(productId);
+                            onAddStock={() => {
                                 setIsPurchaseInvoiceOpen(true);
                             }}
                             searchQuery={searchQuery}
@@ -417,8 +435,12 @@ export function InventoryPage() {
                             key="batches"
                             data={batches}
                             isLoading={isLoadingBatches}
-                            theme={theme}
-                            isRTL={isRTL}
+                            selectedBatch={selectedBatch}
+                            isBatchDetailsOpen={isBatchDetailsOpen}
+                            batchViewMode={batchViewMode}
+                            setSelectedBatch={setSelectedBatch}
+                            setIsBatchDetailsOpen={setIsBatchDetailsOpen}
+                            setBatchViewMode={setBatchViewMode}
                         />
                     )}
                     {activeTab === 'movements' && (
@@ -428,6 +450,10 @@ export function InventoryPage() {
                             isLoading={isLoadingMoves}
                             theme={theme}
                             isRTL={isRTL}
+                            selectedMovement={selectedMovement}
+                            isMovementDetailsOpen={isMovementDetailsOpen}
+                            setSelectedMovement={setSelectedMovement}
+                            setIsMovementDetailsOpen={setIsMovementDetailsOpen}
                         />
                     )}
                     {activeTab === 'alerts' && (
@@ -754,31 +780,152 @@ function ProductsTab({ data, isLoading, theme, isRTL, onAddStock, searchQuery }:
     );
 }
 
-function BatchesTab({ data, isLoading }: TabProps<InventoryBatch>) {
-    const { t } = useTranslation('inventory');
+function BatchesTab({ data, isLoading, selectedBatch, isBatchDetailsOpen, batchViewMode, setSelectedBatch, setIsBatchDetailsOpen, setBatchViewMode }: Omit<TabProps<InventoryBatch>, 'theme' | 'isRTL'> & {
+    selectedBatch: InventoryBatch | null;
+    isBatchDetailsOpen: boolean;
+    batchViewMode: 'table' | 'calendar';
+    setSelectedBatch: (batch: InventoryBatch | null) => void;
+    setIsBatchDetailsOpen: (open: boolean) => void;
+    setBatchViewMode: (mode: 'table' | 'calendar') => void;
+}) {
+    const { language } = useSettingsStore();
+    const store = useInventoryStore();
+
+    // Handlers
+    const handleEditBatch = (batch: InventoryBatch) => {
+        setSelectedBatch(batch);
+        setIsBatchDetailsOpen(true);
+    };
+
+    const handleSaveBatch = async (batchId: string, updates: Partial<InventoryBatch>) => {
+        try {
+            // Call service to update batch
+            // Note: This endpoint needs to be added to the backend service
+            await inventoryService.updateBatch(batchId, updates);
+            // Refresh batches
+            store.fetchBatches();
+        } catch (error) {
+            console.error('[InventoryPage] Failed to update batch:', error);
+            throw error;
+        }
+    };
+
+    const handleBatchClick = (batch: InventoryBatch) => {
+        setSelectedBatch(batch);
+        setIsBatchDetailsOpen(true);
+    };
+
+    const handleRefresh = () => {
+        store.fetchBatches();
+    };
 
     if (isLoading) return <LoadingState />;
-    if (data.length === 0) return <EmptyState message={t('empty.batches', 'No batches found')} />;
+
+    const safeBatches = Array.isArray(data) ? data : [];
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="p-8 text-center text-gray-400">
-                {t('comingSoon', 'Batches view coming soon...')}
+            <div className="p-6">
+                {/* View Mode Toggle */}
+                <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setBatchViewMode('table')}
+                            className={cn(
+                                'px-4 py-2 rounded-lg font-medium text-sm transition-all',
+                                batchViewMode === 'table'
+                                    ? 'bg-cyan-500 text-white'
+                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            )}
+                        >
+                            {language === 'ar' ? 'جدول' : 'Table'}
+                        </button>
+                        <button
+                            onClick={() => setBatchViewMode('calendar')}
+                            className={cn(
+                                'px-4 py-2 rounded-lg font-medium text-sm transition-all',
+                                batchViewMode === 'calendar'
+                                    ? 'bg-cyan-500 text-white'
+                                    : 'bg-slate-800 text-slate-400 hover:bg-slate-700'
+                            )}
+                        >
+                            {language === 'ar' ? 'تقويم' : 'Calendar'}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Content based on view mode */}
+                {batchViewMode === 'table' ? (
+                    <BatchesTable
+                        batches={safeBatches}
+                        loading={isLoading}
+                        onRefresh={handleRefresh}
+                        onEditBatch={handleEditBatch}
+                    />
+                ) : (
+                    <ExpiryCalendar
+                        batches={safeBatches}
+                        onBatchClick={handleBatchClick}
+                    />
+                )}
+
+                {/* Batch Details Modal */}
+                <BatchDetailsModal
+                    isOpen={isBatchDetailsOpen}
+                    onClose={() => {
+                        setIsBatchDetailsOpen(false);
+                        setSelectedBatch(null);
+                    }}
+                    batch={selectedBatch}
+                    onSave={handleSaveBatch}
+                />
             </div>
         </motion.div>
     );
 }
 
-function MovementsTab({ data, isLoading }: TabProps<StockMove>) {
+function MovementsTab({ data, isLoading, selectedMovement, isMovementDetailsOpen, setSelectedMovement, setIsMovementDetailsOpen }: TabProps<StockMove> & {
+    selectedMovement: StockMove | null;
+    isMovementDetailsOpen: boolean;
+    setSelectedMovement: (movement: StockMove | null) => void;
+    setIsMovementDetailsOpen: (open: boolean) => void;
+}) {
     const { t } = useTranslation('inventory');
+    const store = useInventoryStore();
+
+    // Handlers
+    const handleMovementClick = (movement: StockMove) => {
+        setSelectedMovement(movement);
+        setIsMovementDetailsOpen(true);
+    };
+
+    const handleRefresh = () => {
+        store.fetchStockMoves();
+    };
 
     if (isLoading) return <LoadingState />;
-    if (data.length === 0) return <EmptyState message={t('empty.movements', 'No stock movements found')} />;
+
+    const safeMovements = Array.isArray(data) ? data : [];
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="p-8 text-center text-gray-400">
-                {t('comingSoon', 'Movements view coming soon...')}
+            <div className="p-6">
+                <MovementsTable
+                    movements={safeMovements}
+                    loading={isLoading}
+                    onRefresh={handleRefresh}
+                    onMovementClick={handleMovementClick}
+                />
+
+                {/* Movement Details Modal */}
+                <MovementDetailsModal
+                    isOpen={isMovementDetailsOpen}
+                    onClose={() => {
+                        setIsMovementDetailsOpen(false);
+                        setSelectedMovement(null);
+                    }}
+                    movement={selectedMovement}
+                />
             </div>
         </motion.div>
     );
@@ -786,14 +933,37 @@ function MovementsTab({ data, isLoading }: TabProps<StockMove>) {
 
 function AlertsTab({ data, isLoading }: TabProps<StockAlert>) {
     const { t } = useTranslation('inventory');
+    const store = useInventoryStore();
+    const { user } = useAuthStore();
+
+    // Handlers
+    const handleAcknowledge = async (alertId: string) => {
+        const userId = user?.id || 'system';
+        await store.acknowledgeAlert(alertId, userId);
+    };
+
+    const handleResolve = async (alertId: string) => {
+        await store.resolveAlert(alertId);
+    };
+
+    const handleRefresh = () => {
+        store.fetchAlerts();
+    };
 
     if (isLoading) return <LoadingState />;
-    if (data.length === 0) return <EmptyState message={t('empty.alerts', 'No active alerts')} />;
+
+    const safeAlerts = Array.isArray(data) ? data : [];
 
     return (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <div className="p-8 text-center text-gray-400">
-                {t('comingSoon', 'Alerts view coming soon...')}
+            <div className="p-6">
+                <AlertsDashboard
+                    alerts={safeAlerts}
+                    loading={isLoading}
+                    onRefresh={handleRefresh}
+                    onAcknowledge={handleAcknowledge}
+                    onResolve={handleResolve}
+                />
             </div>
         </motion.div>
     );

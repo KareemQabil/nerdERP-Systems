@@ -1,16 +1,15 @@
 /**
  * Sales/Order Types
  * Matches backend DTOs for type safety
+ *
+ * NOTE: Common types (OrderType, PaymentMethod, OrderStatus, PaymentStatus)
+ * are re-exported from @/types/pos.types.ts to ensure type consistency
+ * across the entire application. This is the SINGLE SOURCE OF TRUTH.
  */
+import type { OrderType, PaymentMethod, OrderStatus, PaymentStatus } from '@/types/pos.types';
 
-// ═══════════════════════════════════════════════════════════
-// ENUMS
-// ═══════════════════════════════════════════════════════════
-
-export type OrderType = 'TAKEAWAY' | 'DINE_IN' | 'DELIVERY';
-export type PaymentMethod = 'CASH' | 'CARD' | 'MADA';
-export type OrderStatus = 'OPEN' | 'COMPLETED' | 'VOIDED';
-export type PaymentStatus = 'PENDING' | 'PAID' | 'PARTIALLY_PAID' | 'REFUNDED';
+// Re-export common types for backward compatibility
+export type { OrderType, PaymentMethod, OrderStatus, PaymentStatus };
 
 // ═══════════════════════════════════════════════════════════
 // ORDER ITEM MODIFIER

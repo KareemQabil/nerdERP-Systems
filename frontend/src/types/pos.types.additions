@@ -1,0 +1,37 @@
+
+export interface CalculationStageResult {
+    stage: string;
+    stageType: string;
+    value: number;
+    formula?: string;
+}
+
+export interface StateTransitionResult {
+    success: boolean;
+    order?: Order;
+    currentState: OrderStatus;
+    previousState?: OrderStatus;
+    error?: string;
+    requiresApproval?: boolean;
+    approvalId?: string;
+}
+
+export interface OrderStateHistoryEntry {
+    historyId: string;
+    orderId: string;
+    fromState: OrderStatus | null;
+    toState: OrderStatus;
+    transitionedBy: string;
+    transitionedByName: string;
+    transitionedAt: Date;
+    reason?: string;
+    voidData?: {
+        voidReason: string;
+        authorizedBy?: string;
+    };
+    returnData?: {
+        returnReason: string;
+        returnedItems?: any[];
+    };
+    sideEffects?: string[];
+}

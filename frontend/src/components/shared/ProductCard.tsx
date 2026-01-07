@@ -96,6 +96,7 @@ export function ProductCard({
 
     return (
         <motion.div
+            data-testid={`product-card-${id}`}
             data-theme={theme}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}

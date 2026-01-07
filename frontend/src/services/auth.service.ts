@@ -104,15 +104,24 @@ class AuthService {
    */
   async verifyPin(request: VerifyPinRequest): Promise<VerifyPinResponse> {
     try {
-      const response = await apiClient.post<ApiResponse<VerifyPinResponse>>(
-        `${this.basePath}/verify-pin`,
-        request
-      );
-      return response.data.data;
+      // Backend endpoint is /api/v1/pin/verify with pinCode and deviceId
+      const response = await apiClient.post<ApiResponse<{ user: User }>>('/api/v1/pin/verify', {
+        pinCode: request.pin,
+        deviceId: localStorage.getItem('device_id') || 'web-pos',
+      });
+
+      // Transform to expected response format
+      const userData = response.data.data?.user;
+      return {
+        authorized: !!userData,
+        managerId: userData?.id,
+        managerName: userData ? `${userData.firstName} ${userData.lastName}` : undefined,
+        timestamp: new Date().toISOString(),
+      };
     } catch (error) {
       // Check if it's a PIN locked error
       const apiError = error as ApiError;
-      if (apiError.error?.code === 'SESSION_001') {
+      if (apiError.error?.code === 'AUTH_007') {
         throw new Error('PIN_LOCKED');
       }
       if (apiError.error?.code === 'AUTH_006') {
@@ -147,7 +156,7 @@ class AuthService {
       const apiError = error as ApiError;
       return {
         success: false,
-        attemptsRemaining: apiError.error?.details?.attemptsRemaining || 0,
+        attemptsRemaining: (apiError.error?.details as { attemptsRemaining?: number })?.attemptsRemaining ?? 0,
       };
     }
   }
@@ -215,19 +224,3 @@ class AuthService {
 // =============================================================================
 
 export const authService = new AuthService();
-
-// =============================================================================
-// RE-EXPORT TYPES
-// =============================================================================
-
-export type {
-  LoginRequest,
-  PinLoginRequest,
-  VerifyPinRequest,
-  VerifyPinResponse,
-  ChangePinRequest,
-  UnlockSessionRequest,
-  User,
-  Role,
-  AuthResponse,
-};

@@ -83,6 +83,7 @@ export function OpenSessionModal({
                     initial={{ scale: 0.95, opacity: 0 }}
                     animate={{ scale: 1, opacity: 1 }}
                     exit={{ scale: 0.95, opacity: 0 }}
+                    data-testid="open-session-modal"
                     className="w-full max-w-md bg-gradient-to-b from-[#1a1c1e] to-[#2a2f35] rounded-2xl shadow-2xl overflow-hidden"
                     onClick={(e) => e.stopPropagation()}
                 >
@@ -129,6 +130,7 @@ export function OpenSessionModal({
                             <select
                                 value={selectedUserId}
                                 onChange={(e) => setSelectedUserId(e.target.value)}
+                                data-testid="user-select"
                                 className="w-full px-4 py-2.5 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                                 disabled={isLoading || isSubmitting}
                             >
@@ -151,6 +153,7 @@ export function OpenSessionModal({
                                 value={amount}
                                 onChange={handleAmountChange}
                                 placeholder="0.00"
+                                data-testid="opening-balance-input"
                                 className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white text-2xl font-bold text-right focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                                 disabled={isLoading || isSubmitting}
                                 autoFocus
@@ -180,6 +183,7 @@ export function OpenSessionModal({
                         <Button
                             variant="primary"
                             onClick={handleSubmit}
+                            data-testid="open-session-btn"
                             className="w-full bg-gradient-to-r from-cyan-500 to-cyan-600"
                             disabled={isLoading || isSubmitting}
                         >

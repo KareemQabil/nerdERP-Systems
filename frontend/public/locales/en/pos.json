@@ -118,5 +118,51 @@
         "paymentComplete": "Payment complete",
         "discountApplied": "Applied {{name}} discount",
         "productUnavailable": "Product currently unavailable"
-    }
+    },
+    "checkout": {
+        "title": "Checkout",
+        "complete": "Payment Complete",
+        "pay": "Complete Payment",
+        "exact": "Exact",
+        "remaining": "Remaining",
+        "newOrder": "New Order",
+        "singlePayment": "Single Payment",
+        "splitPayment": "Split Payment",
+        "change": "Change",
+        "sellerName": "Your Business Name",
+        "taxNumber": "Tax Number",
+        "item": "Item",
+        "stockError": "Stock Error",
+        "reservingStock": "Reserving stock...",
+        "requested": "Requested",
+        "cash": "Cash"
+    },
+    "invoice": {
+        "title": "Tax Invoice",
+        "invoiceNumber": "Invoice Number",
+        "invoiceDate": "Invoice Date",
+        "seller": "Seller",
+        "taxNumber": "Tax Number",
+        "customer": "Customer",
+        "description": "Description",
+        "quantity": "Qty",
+        "unitPrice": "Unit Price",
+        "total": "Total",
+        "subtotal": "Subtotal",
+        "discount": "Discount",
+        "taxRate": "VAT Rate",
+        "taxAmount": "VAT Amount",
+        "totalIncludingVat": "Total (incl. VAT)",
+        "paymentMethod": "Payment Method",
+        "invoiceHash": "Invoice Hash",
+        "digitalSignature": "Digital Signature",
+        "print": "Print Invoice",
+        "download": "Download PDF"
+    },
+    "session": {
+        "required": "Please open a session first",
+        "opened": "Session opened successfully",
+        "alreadyOpen": "Session is already open. Using existing session."
+    },
+    "cancel": "Cancel"
 }

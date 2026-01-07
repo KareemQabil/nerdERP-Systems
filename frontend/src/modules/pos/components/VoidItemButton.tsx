@@ -39,7 +39,7 @@ export function VoidItemButton({
     const requiresAuth = requiresKitchen && ['FIRED', 'PREPARING', 'READY'].includes(kitchenStatus);
 
     // Status-based messaging
-    const getStatusMessage = () => {
+    const _getStatusMessage = () => {
         if (!requiresKitchen) return null;
         switch (kitchenStatus) {
             case 'PENDING':
@@ -102,6 +102,7 @@ export function VoidItemButton({
                         ? t('void.clickToConfirm', 'Click again to confirm')
                         : t('void.remove', 'Remove item')
             }
+            data-testid="void-item-btn"
             data-theme={theme}
             className={cn(
                 sizeClasses,

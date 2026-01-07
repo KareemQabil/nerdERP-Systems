@@ -119,4 +119,70 @@ export class OrderItem extends AbstractEntity {
 
     @Column({ name: 'special_instructions', type: 'text', nullable: true })
     specialInstructions: string;
+
+    // =============================================================================
+    // NEW: Coursing Support (Fine Dining)
+    // =============================================================================
+
+    /**
+     * Course number for multi-course meals (1=appetizer, 2=main, 3=dessert, etc.)
+     */
+    @Column({ name: 'course_number', nullable: true })
+    courseNumber: number;
+
+    /**
+     * Don't fire this item to kitchen before this time
+     */
+    @Column({ name: 'hold_until', type: 'timestamp with time zone', nullable: true })
+    holdUntil: Date;
+
+    /**
+     * When item was ready from kitchen
+     */
+    @Column({ name: 'ready_at', type: 'timestamp with time zone', nullable: true })
+    readyAt: Date;
+
+    /**
+     * When item was served to customer
+     */
+    @Column({ name: 'served_at', type: 'timestamp with time zone', nullable: true })
+    servedAt: Date;
+
+    // =============================================================================
+    // NEW: Inventory Reservation Tracking
+    // =============================================================================
+
+    /**
+     * Stock reservation ID (soft hold)
+     * Created when item is added to order
+     */
+    @Column({ name: 'stock_reservation_id', nullable: true })
+    stockReservationId: string;
+
+    /**
+     * Whether stock has been committed (hard deducted)
+     * True after fire to kitchen
+     */
+    @Column({ name: 'stock_committed', default: false })
+    stockCommitted: boolean;
+
+    /**
+     * If voided after fire, whether stock was logged as waste
+     */
+    @Column({ name: 'logged_as_waste', default: false })
+    loggedAsWaste: boolean;
+
+    /**
+     * Waste reason (if logged as waste)
+     */
+    @Column({ name: 'waste_reason', nullable: true })
+    wasteReason: string;
+
+    // =============================================================================
+    // NEW: Allergen Warnings
+    // =============================================================================
+
+    @Column({ type: 'jsonb', nullable: true, name: 'allergen_warnings' })
+    allergenWarnings: string[];
 }
+

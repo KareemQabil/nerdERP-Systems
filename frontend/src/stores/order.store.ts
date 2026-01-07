@@ -4,7 +4,6 @@ import Decimal from 'decimal.js';
 import { DecimalUtil } from '@/lib/decimal';
 import type {
     OrderType,
-    OrderStatus,
     PaymentStatus,
     PaymentMethod,
     Order,
@@ -114,7 +113,7 @@ interface OrderState {
 
     completeOrder: (orderId: string, change: string) => CompletedOrder | null;
 
-    voidOrder: (orderId: string, reason: string, authorizedBy?: string) => void;
+    voidOrder: (orderId: string, reason: string) => void;
 
     // =========================================================================
     // ORDER HISTORY ACTIONS
@@ -134,7 +133,7 @@ interface OrderState {
         totalSales: string;
         totalTax: string;
         averageOrder: string;
-        paymentBreakdown: Record<PaymentMethod, string>;
+        paymentBreakdown: Partial<Record<PaymentMethod, string>>;
     };
 }
 
@@ -370,7 +369,7 @@ export const useOrderStore = create<OrderState>()(
                     return completedOrder;
                 },
 
-                voidOrder: (orderId, reason, authorizedBy) => {
+                voidOrder: (orderId, reason) => {
                     const order = activeOrders.get(orderId);
                     if (order) {
                         // Remove from active
@@ -438,7 +437,7 @@ export const useOrderStore = create<OrderState>()(
                         : '0.000';
 
                     // Payment breakdown
-                    const paymentBreakdown: Record<PaymentMethod, string> = {
+                    const paymentBreakdown: Partial<Record<PaymentMethod, string>> = {
                         CASH: '0.000',
                         CARD: '0.000',
                         GIFT_CARD: '0.000',
@@ -449,7 +448,7 @@ export const useOrderStore = create<OrderState>()(
                     history.forEach((order) => {
                         order.payments.forEach((payment) => {
                             paymentBreakdown[payment.method] = DecimalUtil.add(
-                                paymentBreakdown[payment.method],
+                                paymentBreakdown[payment.method] || '0',
                                 payment.amount
                             ).toFixed(3);
                         });

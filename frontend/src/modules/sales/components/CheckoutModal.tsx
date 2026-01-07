@@ -10,6 +10,7 @@ import {
     ArrowRight,
     ArrowLeft,
     Printer,
+    QrCode,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTranslation } from 'react-i18next';
@@ -18,8 +19,10 @@ import { Button } from '@/components/ui';
 import { PriceDisplay } from '@/components/shared';
 import { DenominationInput } from './DenominationInput';
 import Decimal from 'decimal.js';
+import { Building, Wallet } from 'lucide-react';
 
-export type PaymentMethod = 'CASH' | 'CARD' | 'MADA';
+// H-POS Payment Methods
+export type PaymentMethod = 'CASH' | 'CARD' | 'VISA' | 'MASTERCARD' | 'MADA' | 'MEEZA' | 'EPT' | 'TALABAT' | 'MARSOOL' | 'INSTASHOP';
 
 export interface PaymentEntry {
     method: PaymentMethod;
@@ -42,6 +45,12 @@ interface CheckoutModalProps {
     isSubmitting?: boolean;
     /** Whether the order was successfully completed */
     isSuccess?: boolean;
+    /** ZATCA QR code data (base64 encoded) from order response */
+    zatcaQrCode?: string;
+    /** Order number from completed order */
+    orderNumber?: string;
+    /** Callback when print receipt is clicked */
+    onPrintReceipt?: () => void;
 }
 
 const PAYMENT_METHODS: {
@@ -52,8 +61,13 @@ const PAYMENT_METHODS: {
     color: string;
 }[] = [
         { id: 'CASH', icon: Banknote, labelEn: 'Cash', labelAr: 'نقدي', color: 'from-green-500 to-emerald-600' },
-        { id: 'CARD', icon: CreditCard, labelEn: 'Card', labelAr: 'بطاقة', color: 'from-blue-500 to-indigo-600' },
+        { id: 'VISA', icon: CreditCard, labelEn: 'Visa', labelAr: 'فيزا', color: 'from-blue-500 to-indigo-600' },
+        { id: 'MASTERCARD', icon: CreditCard, labelEn: 'MC', labelAr: 'ماستر', color: 'from-orange-500 to-red-600' },
         { id: 'MADA', icon: Smartphone, labelEn: 'Mada', labelAr: 'مدى', color: 'from-teal-500 to-teal-600' },
+        { id: 'MEEZA', icon: Wallet, labelEn: 'Meeza', labelAr: 'ميزة', color: 'from-purple-500 to-purple-600' },
+        { id: 'EPT', icon: Building, labelEn: 'EPT', labelAr: 'EPT', color: 'from-gray-500 to-gray-600' },
+        { id: 'TALABAT', icon: Building, labelEn: 'Talabat', labelAr: 'طلبات', color: 'from-orange-400 to-orange-500' },
+        { id: 'MARSOOL', icon: Building, labelEn: 'Marsool', labelAr: 'مرسول', color: 'from-yellow-500 to-yellow-600' },
     ];
 
 const QUICK_CASH_AMOUNTS = ['10', '20', '50', '100', '200', '500'];
@@ -75,6 +89,9 @@ export function CheckoutModal({
     itemCount,
     isSubmitting,
     isSuccess,
+    zatcaQrCode,
+    orderNumber,
+    onPrintReceipt,
 }: CheckoutModalProps) {
     const { t } = useTranslation('pos');
     const { theme, language } = useSettingsStore();
@@ -428,33 +445,66 @@ export function CheckoutModal({
                                     key="complete"
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
-                                    className="text-center py-8"
+                                    className="text-center py-6"
                                 >
                                     <motion.div
                                         initial={{ scale: 0 }}
                                         animate={{ scale: 1 }}
                                         transition={{ type: 'spring', damping: 10 }}
-                                        className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center"
+                                        className="w-16 h-16 mx-auto mb-3 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center"
                                     >
-                                        <CheckCircle className="w-10 h-10 text-white" />
+                                        <CheckCircle className="w-8 h-8 text-white" />
                                     </motion.div>
                                     <h3
                                         data-theme={theme}
                                         className={cn(
-                                            'text-xl font-bold mb-2',
+                                            'text-xl font-bold mb-1',
                                             'text-white',
                                             'data-[theme=light]:text-slate-900',
                                         )}
                                     >
                                         {t('checkout.success', 'Payment Successful!')}
                                     </h3>
-                                    <p className="text-slate-400 mb-6">
-                                        {t('checkout.receiptReady', 'Receipt is ready')}
-                                    </p>
+                                    {orderNumber && (
+                                        <p className="text-sm text-slate-400 mb-4">
+                                            {t('checkout.orderNumber', 'Order')}: {orderNumber}
+                                        </p>
+                                    )}
+
+                                    {/* ZATCA QR Code Display */}
+                                    {zatcaQrCode && (
+                                        <div
+                                            data-theme={theme}
+                                            className={cn(
+                                                'mx-auto mb-4 p-3 rounded-xl max-w-[180px]',
+                                                'bg-white',
+                                            )}
+                                        >
+                                            <div className="flex flex-col items-center gap-2">
+                                                <img
+                                                    src={`data:image/png;base64,${zatcaQrCode}`}
+                                                    alt="ZATCA QR Code"
+                                                    className="w-32 h-32"
+                                                    onError={(e) => {
+                                                        // Fallback to QR icon if image fails
+                                                        (e.target as HTMLImageElement).style.display = 'none';
+                                                    }}
+                                                />
+                                                <p className="text-xs text-slate-500 flex items-center gap-1">
+                                                    <QrCode className="w-3 h-3" />
+                                                    ZATCA Compliant
+                                                </p>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     <div className="flex justify-center gap-3">
                                         <Button
                                             variant="secondary"
-                                            onClick={handleFinalize}
+                                            onClick={() => {
+                                                onPrintReceipt?.();
+                                                handleFinalize();
+                                            }}
                                             className="gap-2"
                                         >
                                             <Printer className="w-4 h-4" />

@@ -2,7 +2,27 @@
   "permissions": {
     "allow": [
       "Bash(xargs ls:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(npm run build)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(git checkout:*)",
+      "Bash(find:*)",
+      "Bash(echo:*)",
+      "Bash(timeout 30 npm run dev:*)",
+      "Bash(cat:*)",
+      "Bash(npx playwright test:*)",
+      "Bash(npm run test:e2e:*)",
+      "Bash(curl:*)",
+      "Bash(for i in {1..60})",
+      "Bash(do curl -s http://localhost:3000/)",
+      "Bash(break:*)",
+      "Bash(done)",
+      "Bash(powershell -Command:*)",
+      "Bash(python:*)",
+      "Bash(ls:*)"
     ]
   }
 }

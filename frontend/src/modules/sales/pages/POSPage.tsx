@@ -35,6 +35,9 @@ import { ManagerEODModal } from '../components/ManagerEODModal';
 import { EditCartItemModal } from '../components/EditCartItemModal';
 import { ProductGridSkeleton, CategoryPillsSkeleton } from '../components/skeletons';
 import { OpenSessionModal } from '../components/OpenSessionModal';
+import { TableSelectionModal } from '../components/TableSelectionModal';
+import { VoidOrderModal } from '../components/VoidOrderModal';
+import { OrderLookupModal } from '../components/OrderLookupModal';
 
 // Hooks & Mappers
 import { usePOSData, useOfflineSync } from '../hooks';
@@ -43,6 +46,7 @@ import { mapProductToProductInfo, createAllCategory, mapCategoryToPillProps } fr
 // Stores & Services
 import { useSession } from '@/stores/session.store';
 import { orderService } from '@/services/order.service';
+import { printingService } from '@/services/printing.service';
 
 // Order types constant (these don't come from API)
 import { orderTypes } from '@/data/mock-pos-data';
@@ -109,16 +113,27 @@ export default function POSPage() {
     const [isOpenSessionModalOpen, setIsOpenSessionModalOpen] = useState(false);
     const [isCloseSessionModalOpen, setIsCloseSessionModalOpen] = useState(false);
     const [isEODModalOpen, setIsEODModalOpen] = useState(false);
+    const [isTableSelectionModalOpen, setIsTableSelectionModalOpen] = useState(false);
     const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
     const [isValidatingPayment, setIsValidatingPayment] = useState(false);
     const [isCheckoutSuccess, setIsCheckoutSuccess] = useState(false);
     const [reservationId, setReservationId] = useState<string | null>(null);
+    // Store completed order data for displaying QR code
+    const [completedOrderData, setCompletedOrderData] = useState<{
+        orderNumber: string;
+        zatcaQrCode?: string;
+        orderId?: string;
+    } | null>(null);
 
     // Selected Items
     const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
     const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(null);
     const [pendingPinRequest, setPendingPinRequest] = useState<PinAuthorizationRequest | null>(null);
     const [editingCartItem, setEditingCartItem] = useState<CartItem | null>(null);
+    const [selectedTable, setSelectedTable] = useState<{ id: string; tableNumber: string } | null>(null);
+    // Returns/Void flow
+    const [isOrderLookupModalOpen, setIsOrderLookupModalOpen] = useState(false);
+    const [orderToVoid, setOrderToVoid] = useState<{ id: string; orderNumber: string; total: string } | null>(null);
 
     const { pendingCount, isSyncing, saveFailedOrder, syncOrders } = useOfflineSync();
 
@@ -283,20 +298,22 @@ export default function POSPage() {
             orderPayload = {
                 items: items.map(item => ({
                     productId: item.productId,
-                    quantity: parseFloat(item.quantity),
-                    unitPrice: parseFloat(item.unitPrice),
+                    quantity: Math.max(Number(item.quantity) || 1, 0.001),
+                    unitPrice: Number(item.unitPrice) || 0,
                     // Include modifiers
                     modifiers: item.modifiers?.map(m => ({
                         modifierId: m.modifierGroupId, // Use group ID as modifier ID
                         optionId: m.modifierId, // The actual modifier option ID
-                        priceAdjustment: parseFloat(m.priceAdjustment),
+                        priceAdjustment: Number(m.priceAdjustment) || 0,
                         quantity: 1,
                     })) || [],
                 })),
-                payments: payments.map(p => ({
-                    method: p.method as 'CASH' | 'CARD' | 'MADA',
-                    amount: parseFloat(p.amount),
-                })),
+                payments: payments
+                    .filter(p => Number(p.amount) >= 0.01) // Filter out empty payments
+                    .map(p => ({
+                        method: p.method,
+                        amount: Math.max(Number(p.amount) || 0, 0.01),
+                    })),
                 registerSessionId: sessionId,
                 warehouseId: warehouseId,
                 // Order context
@@ -313,20 +330,18 @@ export default function POSPage() {
 
             console.log('[POS] Order created:', order);
 
+            // Store order data for displaying QR code in success screen
+            setCompletedOrderData({
+                orderNumber: order.orderNumber,
+                zatcaQrCode: order.zatcaQrCode,
+                orderId: order.id,
+            });
+
             // Trigger success animation in modal
             setIsCheckoutSuccess(true);
 
-            // Wait for animation (2s)
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            // Clear cart and clean up
-            clearCart();
-            setSelectedCustomer(null);
-            setIsCheckoutModalOpen(false);
-            setIsCheckoutSuccess(false); // Reset for next time
-            setReservationId(null); // Backend handles release on order creation, but good to clear local state
-
-            success(t('feedback.orderComplete', { orderNumber: order.orderNumber || 'N/A' }));
+            // Don't wait here - let user see QR code and manually close
+            // The cleanup happens when user clicks "New Order"
         } catch (error) {
             console.error('[POS] Order submission failed:', error);
 
@@ -345,6 +360,20 @@ export default function POSPage() {
             }
         } finally {
             setIsSubmittingOrder(false);
+        }
+    };
+
+    // Handle finishing checkout (after user sees QR and clicks New Order)
+    const handleCheckoutFinalize = () => {
+        clearCart();
+        setSelectedCustomer(null);
+        setIsCheckoutModalOpen(false);
+        setIsCheckoutSuccess(false);
+        setReservationId(null);
+        const orderNum = completedOrderData?.orderNumber;
+        setCompletedOrderData(null);
+        if (orderNum) {
+            success(t('feedback.orderComplete', { orderNumber: orderNum }));
         }
     };
 
@@ -507,7 +536,17 @@ export default function POSPage() {
                                         return (
                                             <button
                                                 key={type.id}
-                                                onClick={() => { setSelectedOrderType(type.id); setIsOrderTypeOpen(false); }}
+                                                onClick={() => {
+                                                    setSelectedOrderType(type.id);
+                                                    setIsOrderTypeOpen(false);
+                                                    // Show table selection for dine-in
+                                                    if (type.id === 'dine-in') {
+                                                        setIsTableSelectionModalOpen(true);
+                                                    } else {
+                                                        // Clear table if switching away from dine-in
+                                                        setSelectedTable(null);
+                                                    }
+                                                }}
                                                 data-theme={theme}
                                                 className={cn(
                                                     'w-full flex items-center gap-2 px-4 py-3 text-start transition-colors',
@@ -603,7 +642,7 @@ export default function POSPage() {
                 onFavorites={canSearchCustomers ? () => setIsCustomerModalOpen(true) : undefined}
                 onHistory={canHoldOrders ? () => setIsHeldOrdersModalOpen(true) : undefined}
                 onPrint={() => setIsOrderNotesModalOpen(true)}
-                onReturn={() => console.log('Return')}
+                onReturn={() => setIsOrderLookupModalOpen(true)}
                 onCart={() => setIsCartExpanded(!isCartExpanded)}
                 onEndShift={() => setIsCloseSessionModalOpen(true)}
                 onEOD={() => setIsEODModalOpen(true)}
@@ -628,6 +667,7 @@ export default function POSPage() {
                 onClose={async () => {
                     setIsCheckoutModalOpen(false);
                     setIsCheckoutSuccess(false);
+                    setCompletedOrderData(null);
                     // Handle inventory reservation release if user cancels
                     if (reservationId) {
                         try {
@@ -647,6 +687,20 @@ export default function POSPage() {
                 orderTax={taxAmount}
                 itemCount={itemCount}
                 canSplitPayment={canSplitPayments}
+                zatcaQrCode={completedOrderData?.zatcaQrCode}
+                orderNumber={completedOrderData?.orderNumber}
+                onPrintReceipt={async () => {
+                    if (completedOrderData?.orderId) {
+                        try {
+                            await printingService.printReceipt(completedOrderData.orderId);
+                            success(t('feedback.receiptPrinted', 'Receipt sent to printer'));
+                        } catch (err) {
+                            console.error('[POS] Print failed:', err);
+                            // Don't block checkout if print fails
+                        }
+                    }
+                    handleCheckoutFinalize();
+                }}
             />
 
             {selectedProduct && (
@@ -720,12 +774,55 @@ export default function POSPage() {
                 onComplete={() => success(t('eod.completed', 'EOD report completed'))}
             />
 
+            {/* Table Selection Modal (for DINE_IN orders) */}
+            <TableSelectionModal
+                isOpen={isTableSelectionModalOpen}
+                onClose={() => setIsTableSelectionModalOpen(false)}
+                onSelect={(table) => {
+                    setSelectedTable({ id: table.id, tableNumber: table.tableNumber });
+                    // Update cart store with table info
+                    useCartStore.getState().setTable({
+                        id: table.id,
+                        number: table.tableNumber,
+                        zoneName: table.zone?.zoneName,
+                    });
+                }}
+                selectedTableId={selectedTable?.id}
+            />
+
             {/* Edit Cart Item Modal (Koshary Scenario) */}
             <EditCartItemModal
                 cartItem={editingCartItem}
                 isOpen={editingCartItem !== null}
                 onClose={() => setEditingCartItem(null)}
             />
+
+            {/* Order Lookup Modal (for Returns) */}
+            <OrderLookupModal
+                isOpen={isOrderLookupModalOpen}
+                onClose={() => setIsOrderLookupModalOpen(false)}
+                onSelectOrder={(order) => {
+                    setOrderToVoid({
+                        id: order.id,
+                        orderNumber: order.orderNumber,
+                        total: order.total,
+                    });
+                }}
+            />
+
+            {/* Void Order Modal */}
+            {orderToVoid && (
+                <VoidOrderModal
+                    isOpen={orderToVoid !== null}
+                    onClose={() => setOrderToVoid(null)}
+                    orderId={orderToVoid.id}
+                    orderNumber={orderToVoid.orderNumber}
+                    orderTotal={orderToVoid.total}
+                    onVoidComplete={() => {
+                        success(t('void.orderVoided', 'Order voided successfully'));
+                    }}
+                />
+            )}
         </div>
     );
 }

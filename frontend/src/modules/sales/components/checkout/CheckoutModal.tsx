@@ -2,10 +2,11 @@
  * CheckoutModal Component
  * Multi-step checkout flow with payment processing
  */
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import Decimal from 'decimal.js';
 import { useCartStore } from '@/stores/cart.store';
+import { useSession } from '@/hooks/useSession';  // Session management
 import { ordersApi, inventoryApi } from '@/modules/sales';
 import type { CreateOrderPayload, PaymentMethod } from '@/modules/sales';
 import './CheckoutModal.css';
@@ -20,10 +21,13 @@ type CheckoutStep = 'PAYMENT' | 'PROCESSING' | 'SUCCESS' | 'ERROR';
 
 interface PaymentEntry {
     method: PaymentMethod;
-    amount: string;
+    amount: number;  // Changed from string to number to match backend DTO @IsNumber()
 }
 
 export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProps) {
+    // Session state - get warehouse and session ID dynamically
+    const { sessionId, warehouseId } = useSession();
+
     // Cart state
     const items = useCartStore((state) => state.items.filter(i => !i.isVoided));
     const orderType = useCartStore((state) => state.orderType);
@@ -41,12 +45,29 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     const [error, setError] = useState<string | null>(null);
     const [reservationId, setReservationId] = useState<string | null>(null);
 
+    // Ref to track reservationId for cleanup (avoids stale closures)
+    const reservationIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        reservationIdRef.current = reservationId;
+    }, [reservationId]);
+
+    // Cleanup: Release stock reservation when modal closes or unmounts
+    useEffect(() => {
+        return () => {
+            if (reservationIdRef.current) {
+                console.log('[CheckoutModal] Cleaning up reservation:', reservationIdRef.current);
+                inventoryApi.releaseReservation(reservationIdRef.current).catch(console.error);
+                reservationIdRef.current = null;
+            }
+        };
+    }, []); // Empty deps = cleanup only on unmount
+
     const total = getTotal();
     const totalPaid = payments.reduce(
-        (sum, p) => new Decimal(sum).plus(p.amount).toFixed(3),
-        '0.000'
+        (sum, p) => sum.plus(p.amount),
+        new Decimal(0)
     );
-    const remaining = new Decimal(total).minus(totalPaid).toFixed(3);
+    const remaining = new Decimal(total).minus(totalPaid);
 
     // Create order mutation
     const createOrderMutation = useMutation({
@@ -79,22 +100,23 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
             return;
         }
 
-        const remainingNum = parseFloat(remaining);
+        const remainingNum = remaining.toNumber();
         if (amount > remainingNum) {
             setError(`Amount exceeds remaining balance (${remainingNum.toFixed(2)} SAR)`);
             return;
         }
 
-        setPayments([...payments, { method: selectedMethod, amount: amount.toFixed(3) }]);
+        setPayments([...payments, { method: selectedMethod, amount }]);
         setAmountInput('');
         setError(null);
     };
 
     // Handle quick payment (full amount)
     const handleQuickPayment = (method: PaymentMethod) => {
-        if (parseFloat(remaining) <= 0) return;
+        const remainingNum = remaining.toNumber();
+        if (remainingNum <= 0) return;
 
-        setPayments([{ method, amount: remaining }]);
+        setPayments([{ method, amount: remainingNum }]);
         setError(null);
     };
 
@@ -106,7 +128,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
     // Handle checkout
     const handleCheckout = async () => {
         // Validate payments
-        if (parseFloat(remaining) > 0.01) {
+        if (remaining.toNumber() > 0.01) {
             setError('Payment incomplete');
             return;
         }
@@ -116,7 +138,11 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
 
         try {
             // 1. Reserve stock first
-            const warehouseId = 'default-warehouse-id'; // TODO: Get from session/config
+            // Validate session is open
+            if (!sessionId || !warehouseId) {
+                throw new Error('No active session. Please open a register session first.');
+            }
+
             const reservationId = await inventoryApi.reserveStock(
                 items.map(item => ({
                     productId: item.productId,
@@ -142,10 +168,10 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                 })),
                 payments: payments.map(p => ({
                     method: p.method,
-                    amount: parseFloat(p.amount),
+                    amount: p.amount,  // Already a number now
                 })),
                 orderType,
-                registerSessionId: 'session-id', // TODO: Get from session store
+                registerSessionId: sessionId,  // Use actual session ID from store
                 warehouseId,
                 customerId: customer?.id,
                 tableId: table?.id,
@@ -203,21 +229,21 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             <button
                                 className="quick-payment-btn"
                                 onClick={() => handleQuickPayment('CASH')}
-                                disabled={parseFloat(remaining) <= 0}
+                                disabled={remaining.toNumber() <= 0}
                             >
                                 💵 Cash
                             </button>
                             <button
                                 className="quick-payment-btn"
                                 onClick={() => handleQuickPayment('CARD')}
-                                disabled={parseFloat(remaining) <= 0}
+                                disabled={remaining.toNumber() <= 0}
                             >
                                 💳 Card
                             </button>
                             <button
                                 className="quick-payment-btn"
                                 onClick={() => handleQuickPayment('MADA')}
-                                disabled={parseFloat(remaining) <= 0}
+                                disabled={remaining.toNumber() <= 0}
                             >
                                 🏦 Mada
                             </button>
@@ -263,8 +289,8 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                         {/* Remaining */}
                         <div className="checkout-modal__remaining">
                             <span>Remaining</span>
-                            <span className={parseFloat(remaining) > 0 ? 'text-warning' : 'text-success'}>
-                                {new Decimal(remaining).toFixed(2)} SAR
+                            <span className={remaining.toNumber() > 0 ? 'text-warning' : 'text-success'}>
+                                {remaining.toFixed(2)} SAR
                             </span>
                         </div>
 
@@ -279,7 +305,7 @@ export function CheckoutModal({ isOpen, onClose, onComplete }: CheckoutModalProp
                             <button
                                 className="btn btn--primary"
                                 onClick={handleCheckout}
-                                disabled={parseFloat(remaining) > 0.01}
+                                disabled={remaining.toNumber() > 0.01}
                             >
                                 Complete Order
                             </button>

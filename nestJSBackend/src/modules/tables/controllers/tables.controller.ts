@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { TablesService } from '../services/tables.service';
 import {
@@ -9,7 +9,7 @@ import {
     UpdateReservationDto,
 } from '../dto/tables.dto';
 
-@Controller('api/v1/tables')
+@Controller('tables')
 @ApiTags('Tables & Reservations')
 export class TablesController {
     constructor(private readonly tablesService: TablesService) { }
@@ -29,13 +29,39 @@ export class TablesController {
         };
     }
 
-    @Get('zones/:storeId')
+    @Get('zones')
     @ApiOperation({ summary: 'Get all zones for store' })
-    async getZones(@Param('storeId') storeId: string) {
+    async getZones(@Query('storeId') storeId?: string) {
         const zones = await this.tablesService.findAllZones(storeId);
         return {
             success: true,
             data: zones,
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Patch('zones/:zoneId')
+    @ApiOperation({ summary: 'Update zone' })
+    async updateZone(
+        @Param('zoneId') zoneId: string,
+        @Body() dto: Partial<CreateTableZoneDto>
+    ) {
+        const zone = await this.tablesService.updateZone(zoneId, dto);
+        return {
+            success: true,
+            data: zone,
+            messageKey: 'ZONE_UPDATED',
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Delete('zones/:zoneId')
+    @ApiOperation({ summary: 'Delete zone' })
+    async deleteZone(@Param('zoneId') zoneId: string) {
+        await this.tablesService.deleteZone(zoneId);
+        return {
+            success: true,
+            messageKey: 'ZONE_DELETED',
             timestamp: new Date().toISOString(),
         };
     }
@@ -55,13 +81,39 @@ export class TablesController {
         };
     }
 
-    @Get('store/:storeId')
+    @Get()
     @ApiOperation({ summary: 'Get all tables for store' })
-    async getTables(@Param('storeId') storeId: string) {
+    async getTables(@Query('storeId') storeId?: string) {
         const tables = await this.tablesService.findAllTables(storeId);
         return {
             success: true,
             data: tables,
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Patch(':tableId')
+    @ApiOperation({ summary: 'Update table' })
+    async updateTable(
+        @Param('tableId') tableId: string,
+        @Body() dto: Partial<CreateTableDto>
+    ) {
+        const table = await this.tablesService.updateTable(tableId, dto);
+        return {
+            success: true,
+            data: table,
+            messageKey: 'TABLE_UPDATED',
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Delete(':tableId')
+    @ApiOperation({ summary: 'Delete table' })
+    async deleteTable(@Param('tableId') tableId: string) {
+        await this.tablesService.deleteTable(tableId);
+        return {
+            success: true,
+            messageKey: 'TABLE_DELETED',
             timestamp: new Date().toISOString(),
         };
     }
@@ -197,4 +249,66 @@ export class TablesController {
             timestamp: new Date().toISOString(),
         };
     }
+
+    // ==================== TABLE CLEANING WORKFLOW ====================
+
+    @Post(':id/set-cleaning')
+    @ApiOperation({
+        summary: 'Set table to cleaning status',
+        description: 'Called after order completion. Table transitions from OCCUPIED to CLEANING.'
+    })
+    async setTableCleaning(@Param('id') id: string) {
+        const table = await this.tablesService.setTableCleaning(id);
+        return {
+            success: true,
+            data: table,
+            messageKey: 'TABLE_SET_CLEANING',
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Post(':id/mark-clean')
+    @ApiOperation({
+        summary: 'Mark table as clean and available',
+        description: 'Called by staff after cleaning. Table transitions from CLEANING to AVAILABLE.'
+    })
+    async markTableClean(@Param('id') id: string) {
+        const table = await this.tablesService.markTableClean(id);
+        return {
+            success: true,
+            data: table,
+            messageKey: 'TABLE_MARKED_CLEAN',
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Get('cleaning/:storeId')
+    @ApiOperation({ summary: 'Get tables that need cleaning' })
+    async getTablesNeedingCleaning(@Param('storeId') storeId: string) {
+        const tables = await this.tablesService.getTablesNeedingCleaning(storeId);
+        return {
+            success: true,
+            data: tables,
+            timestamp: new Date().toISOString(),
+        };
+    }
+
+    @Post(':id/block')
+    @ApiOperation({
+        summary: 'Block table',
+        description: 'Block table for maintenance or VIP reservation'
+    })
+    async blockTable(
+        @Param('id') id: string,
+        @Body() body: { reason?: string }
+    ) {
+        const table = await this.tablesService.blockTable(id, body.reason);
+        return {
+            success: true,
+            data: table,
+            messageKey: 'TABLE_BLOCKED',
+            timestamp: new Date().toISOString(),
+        };
+    }
 }
+

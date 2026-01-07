@@ -139,4 +139,50 @@ export class StoreConfigurationService {
             configKey: key,
         });
     }
+
+    /**
+     * Get complete POS configuration for a store
+     * Returns all H-POS settings with defaults for unconfigured values
+     * @param storeId Store UUID
+     * @returns POSConfig object with all settings
+     */
+    async getPOSConfig(storeId: string): Promise<{
+        vatRate: number;
+        serviceChargeRate: number;
+        serviceChargeAppliesTo: string[];
+        currencyCode: string;
+        currencySymbol: string;
+        currencyDecimalPlaces: number;
+        platformDeliveryCharge: number;
+        enableDeliveryZones: boolean;
+        requireTableForDineIn: boolean;
+        requireCustomerCount: boolean;
+        voidRequiresManager: boolean;
+        deleteAfterSaveRequiresManager: boolean;
+        returnRequiresManager: boolean;
+    }> {
+        // Fetch all POS configs for this store in one query
+        const configs = await this.getAllConfigs(storeId, 'pos');
+
+        // Build a map for faster lookups
+        const configMap = new Map<string, any>();
+        configs.forEach(c => configMap.set(c.configKey, c.configValue));
+
+        // Return with defaults
+        return {
+            vatRate: configMap.get('pos.vat_rate') ?? 0.14,
+            serviceChargeRate: configMap.get('pos.service_charge_rate') ?? 0.12,
+            serviceChargeAppliesTo: configMap.get('pos.service_charge_applies_to') ?? ['DINE_IN'],
+            currencyCode: configMap.get('pos.currency_code') ?? 'EGP',
+            currencySymbol: configMap.get('pos.currency_symbol') ?? 'ج.م',
+            currencyDecimalPlaces: configMap.get('pos.currency_decimal_places') ?? 2,
+            platformDeliveryCharge: configMap.get('pos.platform_delivery_charge') ?? 50,
+            enableDeliveryZones: configMap.get('pos.enable_delivery_zones') ?? true,
+            requireTableForDineIn: configMap.get('pos.require_table_for_dine_in') ?? true,
+            requireCustomerCount: configMap.get('pos.require_customer_count') ?? true,
+            voidRequiresManager: configMap.get('pos.void_requires_manager') ?? true,
+            deleteAfterSaveRequiresManager: configMap.get('pos.delete_after_save_requires_manager') ?? true,
+            returnRequiresManager: configMap.get('pos.return_requires_manager') ?? true,
+        };
+    }
 }

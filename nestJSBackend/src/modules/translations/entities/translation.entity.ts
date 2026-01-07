@@ -22,10 +22,13 @@ export class Translation extends AbstractEntity {
     context: string; // 'POS', 'KDS', 'ADMIN', 'RECEIPT'
 
     @Column({ name: 'store_id', nullable: true })
-    storeId: string; // null = global, storeId = override for specific store
+    storeId: string | null; // null = global, storeId = override for specific store
 
     @Column({ name: 'is_custom', default: false })
     isCustom: boolean; // Tenant-customized vs system default
+
+    @Column({ name: 'is_active', default: true })
+    isActive: boolean;
 }
 
 /**

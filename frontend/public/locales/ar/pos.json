@@ -118,5 +118,51 @@
         "paymentComplete": "تمت العملية بنجاح",
         "discountApplied": "تم تطبيق خصم {{name}}",
         "productUnavailable": "المنتج غير متوفر حالياً"
-    }
+    },
+    "checkout": {
+        "title": "الدفع",
+        "complete": "تم الدفع بنجاح",
+        "pay": "إتمام الدفع",
+        "exact": "المبلغ بالضبط",
+        "remaining": "المتبقي",
+        "newOrder": "طلب جديد",
+        "singlePayment": "دفع واحد",
+        "splitPayment": "تقسيم الدفع",
+        "change": "الباقي",
+        "sellerName": "اسم النشاط التجاري",
+        "taxNumber": "الرقم الضريبي",
+        "item": "عنصر",
+        "stockError": "خطأ في المخزون",
+        "reservingStock": "جاري حجز المخزون...",
+        "requested": "مطلوب",
+        "cash": "نقداً"
+    },
+    "invoice": {
+        "title": "فاتورة ضريبية",
+        "invoiceNumber": "رقم الفاتورة",
+        "invoiceDate": "تاريخ الفاتورة",
+        "seller": "البائع",
+        "taxNumber": "الرقم الضريبي",
+        "customer": "العميل",
+        "description": "الوصف",
+        "quantity": "الكمية",
+        "unitPrice": "سعر الوحدة",
+        "total": "الإجمالي",
+        "subtotal": "المجموع الفرعي",
+        "discount": "الخصم",
+        "taxRate": "معدل ضريبة القيمة المضافة",
+        "taxAmount": "ضريبة القيمة المضافة",
+        "totalIncludingVat": "الإجمالي (شامل الضريبة)",
+        "paymentMethod": "طريقة الدفع",
+        "invoiceHash": "هاش الفاتورة",
+        "digitalSignature": "التوقيع الرقمي",
+        "print": "طباعة الفاتورة",
+        "download": "تحميل PDF"
+    },
+    "session": {
+        "required": "يرجى فتح ورية أولاً",
+        "opened": "تم فتح الوردية بنجاح",
+        "alreadyOpen": "الوردية مفتوحة بالفعل. جاري استخدام الوردية الموجودة."
+    },
+    "cancel": "إلغاء"
 }

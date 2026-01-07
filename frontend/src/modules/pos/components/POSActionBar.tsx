@@ -13,6 +13,8 @@ import {
     Moon,
     Sparkles,
     LogOut,
+    Scissors,
+    Trash2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -23,10 +25,12 @@ export interface POSActionBarProps {
     onPayment?: () => void;
     onDiscount?: () => void;
     onHold?: () => void;
+    onSplitBill?: () => void;
     onFavorites?: () => void;
     onHistory?: () => void;
     onPrint?: () => void;
     onReturn?: () => void;
+    onVoid?: () => void;
     onCart?: () => void;
     onCloseSession?: () => void;
     cartItemCount?: number;
@@ -57,10 +61,12 @@ export function POSActionBar({
     onPayment,
     onDiscount,
     onHold,
+    onSplitBill,
     onFavorites,
     onHistory,
     onPrint,
     onReturn,
+    onVoid,
     onCart,
     onCloseSession,
     cartItemCount = 0,
@@ -74,6 +80,8 @@ export function POSActionBar({
         { key: 'payment', icon: CreditCard, labelKey: 'actions.payment', shortcut: 'F2', onClick: onPayment },
         { key: 'discount', icon: Tag, labelKey: 'actions.discount', shortcut: 'F3', onClick: onDiscount },
         { key: 'hold', icon: Clock, labelKey: 'actions.hold', shortcut: 'F4', onClick: onHold },
+        { key: 'splitBill', icon: Scissors, labelKey: 'actions.splitBill', shortcut: 'Shift+F4', onClick: onSplitBill },
+        { key: 'void', icon: Trash2, labelKey: 'actions.void', shortcut: 'F9', onClick: onVoid },
         { key: 'favorites', icon: Heart, labelKey: 'actions.favorites', shortcut: 'F5', onClick: onFavorites },
         { key: 'history', icon: RotateCcw, labelKey: 'actions.history', shortcut: 'F6', onClick: onHistory },
         { key: 'print', icon: Printer, labelKey: 'actions.print', shortcut: 'F7', onClick: onPrint },
@@ -104,6 +112,7 @@ export function POSActionBar({
             {/* Cart Button - START (Left in LTR, Right in RTL) */}
             <motion.button
                 onClick={onCart}
+                data-testid="action-cart"
                 whileHover={{ y: -4, scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className={cn(
@@ -164,6 +173,7 @@ export function POSActionBar({
                         <motion.button
                             key={action.key}
                             onClick={action.onClick}
+                            data-testid={`action-${action.key}`}
                             whileHover={{ y: -4, scale: 1.05 }}
                             whileTap={{ scale: 0.95 }}
                             data-theme={theme}

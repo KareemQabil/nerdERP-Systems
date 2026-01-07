@@ -14,7 +14,7 @@ export interface PriceDisplayProps {
     /** Strikethrough for original price */
     strikethrough?: boolean;
     /** Color variant */
-    variant?: 'default' | 'primary' | 'muted';
+    variant?: 'default' | 'primary' | 'muted' | 'danger';
 }
 
 /**
@@ -51,6 +51,10 @@ export function PriceDisplay({
         muted: cn(
             'text-slate-500',
             'data-[theme=light]:text-slate-400',
+        ),
+        danger: cn(
+            'text-red-400',
+            'data-[theme=light]:text-red-600',
         ),
     };
 

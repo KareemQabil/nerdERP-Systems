@@ -8,6 +8,7 @@ export enum TicketStatus {
     READY = 'READY',
     BUMPED = 'BUMPED',
     CANCELLED = 'CANCELLED',
+    RECALLED = 'RECALLED',
 }
 
 export enum TicketPriority {
@@ -65,6 +66,15 @@ export class KitchenTicket extends AbstractEntity {
     @Column({ type: 'text', nullable: true })
     notes: string;
 
+    @Column({ name: 'recalled_at', type: 'timestamp with time zone', nullable: true })
+    recalledAt: Date;
+
+    @Column({ name: 'recall_reason', type: 'text', nullable: true })
+    recallReason: string;
+
+    @Column({ name: 'is_modified', default: false })
+    isModified: boolean;
+
     @OneToMany(() => KitchenTicketItem, (item) => item.ticket, { cascade: true })
     items: KitchenTicketItem[];
 }
@@ -106,4 +116,19 @@ export class KitchenTicketItem extends AbstractEntity {
 
     @Column({ name: 'prepared_at', type: 'timestamp with time zone', nullable: true })
     preparedAt: Date;
+
+    @Column({ name: 'is_added', default: false })
+    isAdded: boolean;
+
+    @Column({ name: 'is_modified', default: false })
+    isModified: boolean;
+
+    @Column({ name: 'is_voided', default: false })
+    isVoided: boolean;
+
+    @Column({ name: 'voided_at', type: 'timestamp with time zone', nullable: true })
+    voidedAt: Date;
+
+    @Column({ name: 'void_reason', type: 'text', nullable: true })
+    voidReason: string;
 }

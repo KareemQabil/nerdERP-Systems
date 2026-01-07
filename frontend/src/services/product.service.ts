@@ -1,10 +1,12 @@
 /**
  * Product Service
  * Handles product, category, and modifier operations
+ * with offline caching support
  */
 import { ApiService } from '@/lib/api-service';
 import { apiClient } from '@/lib/api-client';
 import type { ApiResponse, PaginatedResult, QueryParams } from '@/types/api.types';
+import { offlineStorage } from '@/lib/offline-storage';
 
 // =============================================================================
 // TYPES
@@ -222,6 +224,103 @@ class ProductService extends ApiService<Product> {
             { params: { warehouseId } }
         );
         return response.data.data;
+    }
+
+    // =========================================================================
+    // OFFLINE SUPPORT
+    // =========================================================================
+
+    /**
+     * Cache products and categories for offline use
+     */
+    async cacheForOffline(_storeId?: string): Promise<void> {
+        try {
+            const [products, categories] = await Promise.all([
+                this.getAllProducts(500),
+                categoryService.getActive(),
+            ]);
+            await offlineStorage.cacheProducts(products, categories);
+            console.log(`[ProductService] Cached ${products.length} products and ${categories.length} categories`);
+        } catch (error) {
+            console.error('[ProductService] Failed to cache for offline:', error);
+        }
+    }
+
+    /**
+     * Get active products with offline fallback
+     * Tries online first, falls back to cache if offline
+     */
+    async getForPOSWithOffline(categoryId?: string, search?: string): Promise<Product[]> {
+        try {
+            // Try online first
+            return await this.getForPOS(categoryId, search);
+        } catch (error) {
+            // Fallback to cache
+            console.log('[ProductService] Using cached products (offline mode)');
+            const cached = await offlineStorage.getProductCache();
+
+            if (!cached) {
+                throw new Error('No cached products available and device is offline');
+            }
+
+            let products = cached.products;
+
+            // Filter by category
+            if (categoryId) {
+                products = products.filter((p) => p.categoryId === categoryId);
+            }
+
+            // Filter by search
+            if (search) {
+                const searchLower = search.toLowerCase();
+                products = products.filter(
+                    (p) =>
+                        p.name.toLowerCase().includes(searchLower) ||
+                        p.sku.toLowerCase().includes(searchLower) ||
+                        p.barcode?.includes(searchLower)
+                );
+            }
+
+            // Only return active products
+            return products.filter((p) => p.isActive);
+        }
+    }
+
+    /**
+     * Get product by ID with offline fallback
+     */
+    async getByIdWithOffline(productId: string): Promise<Product | null> {
+        try {
+            const response = await apiClient.get<ApiResponse<Product>>(`${this.endpoint}/${productId}`);
+            return response.data.data;
+        } catch (error) {
+            // Try cache
+            return await offlineStorage.getProductById(productId);
+        }
+    }
+
+    /**
+     * Quick search with offline fallback
+     */
+    async quickSearchWithOffline(query: string): Promise<Product[]> {
+        try {
+            return await this.quickSearch(query);
+        } catch (error) {
+            // Fallback to cache search
+            const cached = await offlineStorage.getProductCache();
+            if (!cached) {
+                return [];
+            }
+
+            const searchLower = query.toLowerCase();
+            return cached.products.filter(
+                (p) =>
+                    p.isActive &&
+                    (p.name.toLowerCase().includes(searchLower) ||
+                        p.sku.toLowerCase().includes(searchLower) ||
+                        p.barcode?.includes(searchLower))
+            );
+        }
     }
 }
 

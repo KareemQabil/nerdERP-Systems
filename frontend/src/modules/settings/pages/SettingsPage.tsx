@@ -14,6 +14,7 @@ import {
     Package,
     Store,
     Palette,
+    Languages,
     ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -26,6 +27,8 @@ import { POSSection } from '../components/sections/POSSection';
 import { PaymentsSection } from '../components/sections/PaymentsSection';
 import { SecuritySection } from '../components/sections/SecuritySection';
 import { DisplaySection } from '../components/sections/DisplaySection';
+import { TranslationsSection } from '../components/sections/TranslationsSection';
+import { ThemeEditorSection } from '../components/sections/ThemeEditorSection';
 
 // =============================================================================
 // TYPES
@@ -37,7 +40,9 @@ type SettingsSection =
     | 'pos'
     | 'payments'
     | 'security'
-    | 'display';
+    | 'display'
+    | 'translations'
+    | 'themeEditor';
 
 interface SectionConfig {
     id: SettingsSection;
@@ -57,6 +62,8 @@ const SECTIONS: SectionConfig[] = [
     { id: 'payments', labelKey: 'settings.sections.payments', icon: CreditCard, component: PaymentsSection },
     { id: 'security', labelKey: 'settings.sections.security', icon: Shield, component: SecuritySection },
     { id: 'display', labelKey: 'settings.sections.display', icon: Palette, component: DisplaySection },
+    { id: 'translations', labelKey: 'settings.sections.translations', icon: Languages, component: TranslationsSection },
+    { id: 'themeEditor', labelKey: 'settings.sections.themeEditor', icon: Palette, component: ThemeEditorSection },
 ];
 
 // =============================================================================

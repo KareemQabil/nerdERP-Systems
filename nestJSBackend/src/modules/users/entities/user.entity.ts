@@ -2,6 +2,20 @@ import { Entity, Column, ManyToOne, JoinColumn } from 'typeorm';
 import { AbstractEntity } from '../../../common/entities/abstract.entity';
 
 /**
+ * UserRole Enum
+ * Standard role identifiers for permission checks
+ */
+export enum UserRole {
+    ADMIN = 'ADMIN',
+    MANAGER = 'MANAGER',
+    CASHIER = 'CASHIER',
+    WAITER = 'WAITER',
+    KITCHEN = 'KITCHEN',
+    DRIVER = 'DRIVER',
+    VIEWER = 'VIEWER',
+}
+
+/**
  * Role Entity
  * RBAC with granular permissions
  */
@@ -50,9 +64,17 @@ export class User extends AbstractEntity {
 
     /**
      * PIN for quick POS login (4-6 digits)
+     * @deprecated Use pinHash instead - stored securely with bcrypt
      */
     @Column({ name: 'pin_code', nullable: true })
     pinCode: string;
+
+    /**
+     * Hashed PIN using bcrypt (secure storage)
+     * Replaces pinCode for security
+     */
+    @Column({ name: 'pin_hash', nullable: true })
+    pinHash: string;
 
     @Column({ name: 'role_id', nullable: true })
     roleId: string;

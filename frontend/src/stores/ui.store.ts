@@ -47,9 +47,15 @@ export interface ToastConfig {
 // STATE INTERFACE
 // =============================================================================
 
+type OverlayType = 'kitchen' | 'delivery' | 'tables' | null;
+
 interface UIState {
     // Modal stack (supports nested modals)
     modalStack: ModalInstance[];
+
+    // Full-screen overlay state
+    activeOverlay: OverlayType;
+    overlayProps: Record<string, unknown>;
 
     // Global loading
     globalLoading: boolean;
@@ -144,6 +150,19 @@ interface UIState {
 
     /** Close confirmation dialog */
     closeConfirm: () => void;
+
+    // =========================================================================
+    // OVERLAY ACTIONS
+    // =========================================================================
+
+    /** Open a full-screen overlay */
+    openOverlay: (overlay: Exclude<OverlayType, null>, props?: Record<string, unknown>) => void;
+
+    /** Close the active overlay */
+    closeOverlay: () => void;
+
+    /** Check if an overlay is active */
+    isOverlayActive: (overlay: OverlayType) => boolean;
 }
 
 // =============================================================================
@@ -155,6 +174,8 @@ export const useUIStore = create<UIState>()(
         (set, get) => ({
             // Initial state
             modalStack: [],
+            activeOverlay: null,
+            overlayProps: {},
             globalLoading: false,
             loadingMessage: null,
             isSidebarExpanded: true,
@@ -328,6 +349,22 @@ export const useUIStore = create<UIState>()(
                 }
                 set({ confirmDialog: null });
             },
+
+            // =============================================================
+            // OVERLAY ACTIONS
+            // =============================================================
+
+            openOverlay: (overlay, props = {}) => {
+                set({ activeOverlay: overlay, overlayProps: props });
+            },
+
+            closeOverlay: () => {
+                set({ activeOverlay: null, overlayProps: {} });
+            },
+
+            isOverlayActive: (overlay) => {
+                return get().activeOverlay === overlay;
+            },
         }),
         { name: 'UIStore' }
     )
@@ -340,6 +377,7 @@ export const useUIStore = create<UIState>()(
 export const selectModalStack = (state: UIState) => state.modalStack;
 export const selectTopModal = (state: UIState) => state.modalStack[state.modalStack.length - 1] ?? null;
 export const selectHasOpenModals = (state: UIState) => state.modalStack.length > 0;
+export const selectActiveOverlay = (state: UIState) => state.activeOverlay;
 export const selectIsLoading = (state: UIState) => state.globalLoading;
 export const selectToasts = (state: UIState) => state.toasts;
 export const selectConfirmDialog = (state: UIState) => state.confirmDialog;
@@ -364,3 +402,9 @@ export const closeModal = (id?: string) => useUIStore.getState().closeModal(id);
 
 /** Quick confirm dialog */
 export const confirm = useUIStore.getState().confirm;
+
+/** Quick overlay openers */
+export const openOverlay = (overlay: Exclude<OverlayType, null>, props?: Record<string, unknown>) =>
+    useUIStore.getState().openOverlay(overlay, props);
+
+export const closeOverlay = () => useUIStore.getState().closeOverlay();

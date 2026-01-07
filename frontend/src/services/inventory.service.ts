@@ -126,6 +126,40 @@ export interface CreatePurchaseInvoiceDto {
     notes?: string;
 }
 
+// =============================================================================
+// Stock Reservation Types (for POS checkout)
+// =============================================================================
+
+export interface ReserveStockRequest {
+    productId: string;
+    warehouseId: string;
+    quantity: number | string;
+    sessionId?: string;
+    orderId?: string;
+    reason?: string;
+    expiresInMinutes?: number;
+}
+
+export interface ReserveStockResponse {
+    reservationId: string;
+    expiresAt: string;
+    status: 'PENDING';
+}
+
+export interface CheckAvailabilityRequest {
+    items: Array<{
+        productId: string;
+        quantity: number | string;
+    }>;
+    warehouseId: string;
+}
+
+export interface AvailabilityResult {
+    isAvailable: boolean;
+    requested: string;
+    availableQty: string;
+}
+
 // Filters
 export interface BatchFilters {
     warehouseId?: string;
@@ -192,6 +226,11 @@ class InventoryServiceClass {
         return response.data?.data || response.data;
     }
 
+    async updateBatch(batchId: string, updates: Partial<InventoryBatch>): Promise<InventoryBatch> {
+        const response = await apiClient.patch(`${this.baseUrl}/inventory/batches/${batchId}`, updates);
+        return response.data?.data || response.data;
+    }
+
     // =========================================================================
     // Stock Moves
     // =========================================================================
@@ -223,6 +262,69 @@ class InventoryServiceClass {
             referenceId,
         });
         return response.data?.data || response.data || [];
+    }
+
+    // =========================================================================
+    // Stock Reservation (for POS checkout)
+    // =========================================================================
+
+    /**
+     * Reserve stock for checkout
+     * Creates a temporary reservation to prevent overselling
+     * @param request Reservation parameters
+     * @returns Reservation ID and expiry time
+     */
+    async reserveStock(request: ReserveStockRequest): Promise<ReserveStockResponse> {
+        const response = await apiClient.post(`${this.baseUrl}/inventory/reserve`, request);
+        return response.data?.data || response.data;
+    }
+
+    /**
+     * Commit a reservation - actually deduct the stock
+     * Called when payment is confirmed and order is finalized
+     * @param reservationId The reservation ID to commit
+     */
+    async commitReservation(reservationId: string): Promise<void> {
+        await apiClient.post(`${this.baseUrl}/inventory/commit-reservation`, { reservationId });
+    }
+
+    /**
+     * Release a reservation - cancel the temporary hold
+     * Called when checkout is cancelled or times out
+     * @param reservationId The reservation ID to release
+     */
+    async releaseReservation(reservationId: string): Promise<void> {
+        try {
+            await apiClient.post(`${this.baseUrl}/inventory/release-reservation`, { reservationId });
+        } catch (error) {
+            // Don't throw - reservation might have already expired
+            console.warn('[InventoryService] Failed to release reservation, continuing:', error);
+        }
+    }
+
+    /**
+     * Check availability for multiple items (POS checkout)
+     * Returns a map of product ID to availability status
+     * @param request Items to check
+     * @returns Map of product ID to availability result
+     */
+    async checkAvailability(request: CheckAvailabilityRequest): Promise<Map<string, AvailabilityResult>> {
+        const response = await apiClient.post(`${this.baseUrl}/inventory/check-availability`, request);
+        const results = response.data?.data || response.data || {};
+        return new Map(Object.entries(results));
+    }
+
+    /**
+     * Get available stock for a single product
+     * @param productId The product ID
+     * @param warehouseId The warehouse ID
+     * @returns Available quantity
+     */
+    async getAvailableStock(productId: string, warehouseId: string): Promise<string> {
+        const response = await apiClient.get(`${this.baseUrl}/inventory/available-stock`, {
+            params: { productId, warehouseId }
+        });
+        return response.data?.data?.available || '0';
     }
 
     // =========================================================================

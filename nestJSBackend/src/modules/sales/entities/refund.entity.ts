@@ -107,6 +107,9 @@ export class Refund extends AbstractEntity {
     @Column({ name: 'original_payment_method', nullable: true })
     originalPaymentMethod: string;
 
+    @Column({ name: 'original_payment_id', nullable: true })
+    originalPaymentId: string;
+
     @Column({ name: 'processed_at', type: 'timestamp with time zone', nullable: true })
     processedAt: Date;
 }

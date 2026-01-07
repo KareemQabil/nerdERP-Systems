@@ -90,6 +90,51 @@ export class VoidOperationService {
       });
     }
 
+    // ANTI-FRAUD: Block void if item is already being prepared or ready in kitchen
+    // This prevents food waste and fraudulent voids after kitchen has started work
+    const blockedKitchenStatuses = ['PREPARING', 'READY'];
+    if (item.kitchenStatus && blockedKitchenStatuses.includes(item.kitchenStatus)) {
+      // Log the void attempt for security audit
+      await this.auditLogService.logAction({
+        entityName: 'ORDER_ITEM',
+        entityId: item.id,
+        action: 'VOID_BLOCKED_POST_KITCHEN',
+        newValues: {
+          kitchenStatus: item.kitchenStatus,
+          reason: params.reason,
+          productName: item.productName,
+        },
+        userId: params.requestedByUserId,
+        userName: params.requestedByUserName,
+        ipAddress: params.ipAddress,
+        storeId: params.storeId,
+      });
+
+      throw new ForbiddenException({
+        code: 'VOID_006',
+        messageKey: 'VOID_BLOCKED_KITCHEN_STARTED',
+        message: `Cannot void item that is ${item.kitchenStatus?.toLowerCase()} in kitchen. Item must be recalled from kitchen first.`,
+      });
+    }
+
+    // Warning for items already fired to kitchen (but not yet preparing)
+    if (item.kitchenStatus === 'FIRED') {
+      await this.auditLogService.logAction({
+        entityName: 'ORDER_ITEM',
+        entityId: item.id,
+        action: 'VOID_WARNING_FIRED_TO_KITCHEN',
+        newValues: {
+          reason: params.reason,
+          productName: item.productName,
+          authorizedBy: params.authorizingUserName,
+        },
+        userId: params.requestedByUserId,
+        userName: params.requestedByUserName,
+        ipAddress: params.ipAddress,
+        storeId: params.storeId,
+      });
+    }
+
     // Restore inventory if product tracks inventory
     if (item.product?.trackInventory) {
       await this.inventoryService.restoreStock({
@@ -256,6 +301,10 @@ export class VoidOperationService {
   /**
    * Process refunds for a voided order
    *
+   * Calculates proportional refunds for split payments.
+   * Example: Order total 100 SAR, paid 50 SAR cash + 50 SAR card.
+   * When voided, refunds 50 SAR to cash and 50 SAR to card (proportional).
+   *
    * @param order The order to refund
    * @param params Authorization parameters
    */
@@ -272,34 +321,45 @@ export class VoidOperationService {
       storeId?: string;
     },
   ): Promise<void> {
+    // Calculate total paid amount
     const totalPaid = order.payments.reduce(
       (sum, payment) => sum.plus(new Decimal(payment.amount)),
       new Decimal(0),
     );
 
-    // For each payment, create a refund
+    // Calculate refund amount (order total net, which should equal total paid)
+    const totalRefundAmount = new Decimal(order.totalNet);
+
+    // For each payment, calculate proportional refund
     for (const payment of order.payments) {
+      // Calculate refund proportion: (payment amount / total paid) * total refund amount
+      const paymentAmount = new Decimal(payment.amount);
+      const proportion = paymentAmount.div(totalPaid);
+      const refundAmount = totalRefundAmount.mul(proportion);
+
+      // Create refund record with proportional amount
       const refund = this.refundRepo.create({
         order: order,
         refundNumber: `REF-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
         status: RefundStatus.COMPLETED,
-        refundAmount: payment.amount,
+        refundAmount: refundAmount.toDecimalPlaces(3).toNumber(),
         refundReason: params.reason as any,
         requestedByUserId: params.requestedByUserId,
         requestedByUserName: params.requestedByUserName,
         approvedByUserId: params.authorizingUserId,
         approvedByUserName: params.authorizingUserName,
         originalPaymentMethod: payment.method,
+        originalPaymentId: payment.id,
         processedAt: new Date(),
       });
 
       await this.refundRepo.save(refund);
 
-      // Log refund
+      // Log refund with proportional amount
       await this.auditLogService.logRefundOperation({
         paymentId: payment.id,
         orderId: order.id,
-        refundAmount: payment.amount,
+        refundAmount: refundAmount.toDecimalPlaces(3).toNumber(),
         reason: params.reason,
         processedBy: {
           id: params.requestedByUserId,

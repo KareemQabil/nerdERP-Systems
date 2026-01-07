@@ -8,11 +8,8 @@ import { PlaceholderPage } from '@/components/shared';
 import {
   ClipboardList,
   Users,
-  ChefHat,
   Truck,
   Wallet,
-  LayoutGrid,
-  BarChart3,
 } from 'lucide-react';
 import '@/config/i18n.config';
 import './index.css';
@@ -23,6 +20,10 @@ import { lazy } from 'react';
 const POSPage = lazy(() => import('@/modules/pos/pages/POSPage'));
 const SettingsPage = lazy(() => import('@/modules/settings/pages/SettingsPage'));
 const InventoryPage = lazy(() => import('@/modules/inventory/pages/InventoryPage'));
+const KDSPage = lazy(() => import('@/modules/kitchen/pages/KDSPage'));
+const TablesPage = lazy(() => import('@/modules/tables/pages/TablesPage'));
+const ReportsDashboard = lazy(() => import('@/modules/reports/pages/ReportsDashboard'));
+// const DeliveryDashboardPage = lazy(() => import('@/modules/delivery/pages/DeliveryDashboardPage')); // Requires props
 // const LoginPage = lazy(() => import('@/modules/auth/pages/LoginPage'));
 
 // Create a client
@@ -87,7 +88,11 @@ const router = createBrowserRouter([
       },
       {
         path: 'kitchen',
-        element: <PlaceholderPage titleKey="nav.kitchen" descriptionKey="placeholder.kitchenDesc" icon={ChefHat} />,
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <KDSPage />
+          </Suspense>
+        ),
       },
       {
         path: 'delivery',
@@ -99,11 +104,19 @@ const router = createBrowserRouter([
       },
       {
         path: 'tables',
-        element: <PlaceholderPage titleKey="nav.seating" descriptionKey="placeholder.seatingDesc" icon={LayoutGrid} />,
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <TablesPage />
+          </Suspense>
+        ),
       },
       {
         path: 'reports',
-        element: <PlaceholderPage titleKey="nav.reports" descriptionKey="placeholder.reportsDesc" icon={BarChart3} />,
+        element: (
+          <Suspense fallback={<PageLoader />}>
+            <ReportsDashboard />
+          </Suspense>
+        ),
       },
     ],
   },

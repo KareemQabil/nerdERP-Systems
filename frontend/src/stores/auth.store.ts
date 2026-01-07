@@ -101,6 +101,12 @@ interface AuthState {
     pinLockTimeout: number; // minutes before auto-lock
     lastActivity: string | null;
 
+    // PIN attempt tracking (NEW for backend lockout)
+    pinAttempts: number;
+    maxPinAttempts: number;
+    pinLockoutUntil: string | null; // ISO timestamp when lockout expires
+    deviceId: string; // Device ID for attempt tracking
+
     // PIN verification (fallback to mock if API unavailable)
     managers: Map<string, { id: string; name: string; pin: string }>;
     useApiForPin: boolean; // Toggle between API and mock
@@ -128,11 +134,17 @@ interface AuthState {
     checkAutoLock: () => void;
 
     // =========================================================================
-    // LOGIN/LOGOUT ACTIONS
+    // PIN ATTEMPT & LOCKOUT TRACKING (NEW)
     // =========================================================================
 
-    login: (user: User) => void;
-    logout: () => void;
+    incrementPinAttempts: () => void;
+    resetPinAttempts: () => void;
+    setPinLockout: (until: string) => void;
+    clearPinLockout: () => void;
+    getPinLockoutRemaining: () => number; // seconds remaining
+    isPinLockedOut: () => boolean;
+    checkAndClearExpiredLockout: () => void;
+    initializeDeviceId: () => void;
 
     // =========================================================================
     // PERMISSION CHECKS
@@ -147,6 +159,7 @@ interface AuthState {
 
     verifyPin: (pin: string, action: PinAuthorizationRequest['action'], reason?: VoidReason | string) => Promise<PinAuthorizationResult>;
     verifyPinWithApi: (pin: string, action: string, reason?: string) => Promise<PinAuthorizationResult>;
+    verifyPinMock: (pin: string, action: string, reason?: string) => Promise<PinAuthorizationResult>;
 
     // =========================================================================
     // PIN MANAGEMENT (NEW)
@@ -297,6 +310,10 @@ export const useAuthStore = create<AuthState>()(
                 lockedAt: null,
                 pinLockTimeout: 5, // 5 minutes default
                 lastActivity: null,
+                pinAttempts: 0,
+                maxPinAttempts: 5,
+                pinLockoutUntil: null,
+                deviceId: '',
                 managers: DEFAULT_MANAGERS,
                 useApiForPin: true, // Use API by default
                 authorizationLogs: [],
@@ -412,7 +429,7 @@ export const useAuthStore = create<AuthState>()(
                         return result;
                     } catch (error) {
                         // Handle API errors (PIN locked, invalid PIN, etc.)
-                        const errorMessage = (error as Error).message;
+                        // const errorMessage = (error as Error).message;
 
                         // Log failed attempt
                         const log: AuthorizationLog = {
@@ -455,7 +472,7 @@ export const useAuthStore = create<AuthState>()(
 
                     const log: AuthorizationLog = {
                         id: crypto.randomUUID(),
-                        action,
+                        action: action as PinAuthorizationRequest['action'],
                         authorizedBy: authorizedManager?.id ?? 'unknown',
                         authorizedByName: authorizedManager?.name ?? 'Unknown',
                         requestedBy: currentUser?.id ?? 'unknown',
@@ -487,7 +504,7 @@ export const useAuthStore = create<AuthState>()(
                 // PIN LOCK STATE (NEW)
                 // =====================================================================
 
-                lockPOS: (reason) => {
+                lockPOS: (_reason) => {
                     set({
                         isLocked: true,
                         lockedAt: new Date().toISOString(),
@@ -496,7 +513,6 @@ export const useAuthStore = create<AuthState>()(
                 },
 
                 unlockPOS: async (pin) => {
-                    const state = get();
                     try {
                         // Try to unlock using the same PIN verification
                         const result = await authService.verifyPin({
@@ -540,6 +556,72 @@ export const useAuthStore = create<AuthState>()(
                             get().lockPOS('Auto-lock due to inactivity');
                         }
                     }
+                },
+
+                // =====================================================================
+                // PIN ATTEMPT & LOCKOUT TRACKING (NEW)
+                // =====================================================================
+
+                incrementPinAttempts: () => {
+                    const state = get();
+                    const newAttempts = state.pinAttempts + 1;
+                    set({ pinAttempts: newAttempts });
+
+                    // Auto-lock if max attempts reached
+                    if (newAttempts >= state.maxPinAttempts) {
+                        const lockoutUntil = new Date();
+                        lockoutUntil.setMinutes(lockoutUntil.getMinutes() + 15); // 15 minute lockout
+                        get().setPinLockout(lockoutUntil.toISOString());
+                    }
+                },
+
+                resetPinAttempts: () => {
+                    set({ pinAttempts: 0 });
+                },
+
+                setPinLockout: (until: string) => {
+                    set({ pinLockoutUntil: until });
+                },
+
+                clearPinLockout: () => {
+                    set({ pinAttempts: 0, pinLockoutUntil: null });
+                },
+
+                getPinLockoutRemaining: () => {
+                    const state = get();
+                    if (!state.pinLockoutUntil) return 0;
+
+                    const lockoutTime = new Date(state.pinLockoutUntil).getTime();
+                    const now = Date.now();
+                    return Math.max(0, Math.floor((lockoutTime - now) / 1000));
+                },
+
+                isPinLockedOut: () => {
+                    const state = get();
+                    if (!state.pinLockoutUntil) return false;
+
+                    const lockoutTime = new Date(state.pinLockoutUntil).getTime();
+                    return lockoutTime > Date.now();
+                },
+
+                checkAndClearExpiredLockout: () => {
+                    const state = get();
+                    if (state.pinLockoutUntil) {
+                        const lockoutTime = new Date(state.pinLockoutUntil).getTime();
+                        if (lockoutTime <= Date.now()) {
+                            get().clearPinLockout();
+                        }
+                    }
+                },
+
+                initializeDeviceId: () => {
+                    // Get or generate device ID from localStorage
+                    let deviceId = localStorage.getItem('nerdpos-device-id');
+                    if (!deviceId) {
+                        deviceId = `device-${crypto.randomUUID()}`;
+                        localStorage.setItem('nerdpos-device-id', deviceId);
+                    }
+                    set({ deviceId });
                 },
 
                 // =====================================================================
@@ -654,6 +736,7 @@ export function useCanPerformAction(action: PinAuthorizationRequest['action']): 
 
     const permissionMap: Record<PinAuthorizationRequest['action'], Permission> = {
         VOID_ITEM: 'VOID_ITEM',
+        VOID_ORDER: 'VOID_ORDER',
         APPLY_DISCOUNT: 'APPLY_DISCOUNT',
         PRICE_OVERRIDE: 'PRICE_OVERRIDE',
         REFUND: 'VOID_ORDER', // Refunds require void permission

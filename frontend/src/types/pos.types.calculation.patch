@@ -1,0 +1,33 @@
+export interface CalculationBreakdownStage {
+    stageId: string;
+    stageName: string;
+    description: string;
+    inputs: Record<string, any>;
+    outputs: Record<string, string>;
+    formula: string;
+}
+
+export interface CalculationBreakdown {
+    pipelineId: string;
+    pipelineVersion: string;
+    orderType: OrderType;
+    executedAt: string;
+    stages: CalculationBreakdownStage[];
+    summary: {
+        subtotal: string;
+        serviceCharge: string;
+        deliveryFee: string;
+        subtotalBeforeTax: string;
+        tax: string;
+        discount: string;
+        total: string;
+    };
+}
+
+export interface CalculationStageBreakdown {
+    stage: string;
+    stageType: string;
+    description: string;
+    value: number;
+    formula?: string;
+}

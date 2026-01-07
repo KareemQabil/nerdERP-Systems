@@ -9,7 +9,15 @@ import type {
     KitchenStation,
     ItemDiscount,
     VoidReason,
+    CalculationPipelineConfig,
+    CalculationBreakdown,
+    CalculationBreakdownStage,
 } from '@/types/pos.types';
+import { DELIVERY_ZONES, PLATFORM_DELIVERY_CHARGE, PLATFORM_ORDER_TYPES } from '@/constants/pos';
+import { storeConfigService, type POSConfig } from '@/services/store-config.service';
+
+// Default service charge rate (fallback if config not loaded)
+const DEFAULT_SERVICE_CHARGE_RATE = 0.12;
 
 // ============= Types =============
 
@@ -97,7 +105,9 @@ export interface TableInfo {
 export interface DeliveryInfo {
     address: string;
     city: string;
-    zone: string;
+    zoneId: string; // Zone ID (A, B, C, D, E, F, G)
+    zone: string; // Zone name for display
+    zoneCode?: string;
     deliveryFee: string;
     customerName: string;
     customerPhone: string;
@@ -114,6 +124,17 @@ interface CartState {
     delivery: DeliveryInfo | null;
     discount: AppliedDiscount | null;
     notes: string | null;
+    stockReservationId: string | null;  // Track active stock reservation
+    posConfig: POSConfig | null;  // Dynamic POS configuration from backend
+    storeId: string | null;  // Current store ID for config fetching
+
+    // Pipeline Configuration (new)
+    pipelineConfig: CalculationPipelineConfig | null;
+    usePipelineCalculation: boolean;  // Toggle between pipeline and legacy calculation
+    calculationBreakdown: CalculationBreakdown | null;  // Audit trail of calculations
+
+    // Configuration Actions
+    loadPOSConfig: (storeId: string) => Promise<void>;
 
     // Item Actions
     addItem: (
@@ -138,8 +159,19 @@ interface CartState {
     setCustomer: (customer: CustomerInfo | null) => void;
     setTable: (table: TableInfo | null) => void;
     setDelivery: (delivery: DeliveryInfo | null) => void;
+    setDeliveryByZone: (zoneId: string, addressDetails: Omit<DeliveryInfo, 'zoneId' | 'zone' | 'deliveryFee'>) => void;
     setDiscount: (discount: AppliedDiscount | null) => void;
     setNotes: (notes: string | null) => void;
+    setStockReservationId: (reservationId: string | null) => void;  // Set stock reservation ID
+
+    // Delivery Helpers
+    getDeliveryZones: () => typeof DELIVERY_ZONES;
+
+    // Pipeline Configuration Actions (new)
+    setPipelineConfig: (config: CalculationPipelineConfig | null) => void;
+    setUsePipelineCalculation: (use: boolean) => void;
+    executePipelineCalculation: () => CalculationBreakdown;
+    getCalculationBreakdown: () => CalculationBreakdown | null;
 
     // Kitchen Actions
     fireToKitchen: (cartItemIds?: string[]) => void;
@@ -148,6 +180,8 @@ interface CartState {
     // Computed (as functions)
     getSubtotal: () => string;
     getItemDiscountsTotal: () => string;
+    getServiceCharge: () => string;
+    getSubtotalBeforeTax: () => string;
     getTaxRate: () => string;
     getTaxAmount: () => string;
     getDiscountAmount: () => string;
@@ -170,7 +204,8 @@ interface CartState {
     getCheckoutBlockers: () => string[];
 }
 
-const TAX_RATE = '15'; // 15% VAT
+// Default VAT rate (15% for ZATCA Phase 2 Saudi Arabia) - Used as fallback if posConfig not loaded
+const DEFAULT_VAT_RATE = 0.15;
 
 export const useCartStore = create<CartState>()(
     devtools(
@@ -183,6 +218,14 @@ export const useCartStore = create<CartState>()(
                 delivery: null,
                 discount: null,
                 notes: null,
+                stockReservationId: null,  // Track active stock reservation
+                posConfig: null,  // Will be loaded on mount
+                storeId: null,  // Set when config is loaded
+
+                // Pipeline Configuration (new)
+                pipelineConfig: null,
+                usePipelineCalculation: false,  // Default to legacy calculation for now
+                calculationBreakdown: null,
 
                 addItem: (product, quantity = 1, modifiers = [], instructions) => {
                     const basePrice = product.salePrice;
@@ -345,6 +388,7 @@ export const useCartStore = create<CartState>()(
                     delivery: null,
                     discount: null,
                     notes: null,
+                    stockReservationId: null,  // Clear reservation
                 }),
 
                 setOrderType: (type) => {
@@ -371,9 +415,32 @@ export const useCartStore = create<CartState>()(
                     orderType: delivery ? 'DELIVERY' : get().orderType,
                 }),
 
+                setDeliveryByZone: (zoneId, addressDetails) => {
+                    // Find the zone and calculate delivery fee
+                    const zone = DELIVERY_ZONES.find(z => z.id === zoneId);
+                    if (!zone) {
+                        console.error(`Invalid zone ID: ${zoneId}`);
+                        return;
+                    }
+
+                    const delivery: DeliveryInfo = {
+                        ...addressDetails,
+                        zoneId: zone.id,
+                        zone: zone.name,
+                        deliveryFee: zone.baseCharge.toFixed(3),
+                    };
+
+                    set({
+                        delivery,
+                        orderType: 'DELIVERY',
+                    });
+                },
+
                 setDiscount: (discount) => set({ discount }),
 
                 setNotes: (notes) => set({ notes }),
+
+                setStockReservationId: (reservationId) => set({ stockReservationId: reservationId }),
 
                 // Kitchen Actions
                 fireToKitchen: (cartItemIds) => {
@@ -432,6 +499,28 @@ export const useCartStore = create<CartState>()(
                     return kitchenItems.every(i => i.kitchenStatus === 'READY' || i.kitchenStatus === 'SERVED');
                 },
 
+                // =========================================================================
+                // CONFIGURATION ACTIONS
+                // =========================================================================
+
+                /**
+                 * Load POS configuration from backend (service charge rate, VAT rate, etc.)
+                 * Call this on app initialization or when store changes
+                 */
+                loadPOSConfig: async (storeId: string) => {
+                    try {
+                        const config = await storeConfigService.getPOSConfig(storeId);
+                        set({ posConfig: config, storeId });
+                    } catch (error) {
+                        console.error('Failed to load POS config, using defaults:', error);
+                        // Keep existing config or null (will use fallback defaults)
+                    }
+                },
+
+                // =========================================================================
+                // CALCULATION GETTERS
+                // =========================================================================
+
                 getSubtotal: () => {
                     return DecimalUtil.sum(
                         get().getActiveItems().map((i) => i.lineTotal)
@@ -449,13 +538,58 @@ export const useCartStore = create<CartState>()(
                     return total.toFixed(3);
                 },
 
-                getTaxRate: () => TAX_RATE,
-
-                getTaxAmount: () => {
+                /**
+                 * Service Charge (configurable rate for DINE_IN orders only)
+                 * Applies to items subtotal before tax
+                 * Rate is fetched from store configuration (default 12%)
+                 */
+                getServiceCharge: () => {
+                    const orderType = get().orderType;
+                    const table = get().table;
                     const subtotal = get().getSubtotal();
+                    const posConfig = get().posConfig;
+
+                    // Only apply service charge for DINE_IN orders with a table selected
+                    if (orderType === 'DINE_IN' && table) {
+                        // Use dynamic rate from config, or fall back to default
+                        const rate = new Decimal(posConfig?.serviceChargeRate ?? DEFAULT_SERVICE_CHARGE_RATE);
+                        return new Decimal(subtotal).mul(rate).toFixed(3);
+                    }
+
+                    return '0.000';
+                },
+
+                /**
+                 * Subtotal Before Tax
+                 * Items Subtotal + Service Charge (if applicable)
+                 * This is the amount on which VAT is calculated
+                 */
+                getSubtotalBeforeTax: () => {
+                    const subtotal = get().getSubtotal();
+                    const serviceCharge = get().getServiceCharge();
+                    return DecimalUtil.add(subtotal, serviceCharge).toFixed(3);
+                },
+
+                // VAT rate from store configuration (dynamic, editable via Settings UI)
+                getTaxRate: () => {
+                    const posConfig = get().posConfig;
+                    const rate = posConfig?.vatRate ?? DEFAULT_VAT_RATE;
+                    // Return as percentage string for display (e.g., "15" for 15%)
+                    return (rate * 100).toString();
+                },
+
+                /**
+                 * VAT Amount
+                 * Calculated on (Subtotal + Service Charge - Discount)
+                 * TODO: Make tax rate configurable per store/organization (MENA region support)
+                 */
+                getTaxAmount: () => {
+                    const subtotalBeforeTax = get().getSubtotalBeforeTax();
                     const discountAmount = get().getDiscountAmount();
-                    const taxableAmount = DecimalUtil.subtract(subtotal, discountAmount);
-                    return DecimalUtil.calculatePercentage(taxableAmount, TAX_RATE).toFixed(3);
+                    const taxableAmount = DecimalUtil.subtract(subtotalBeforeTax, discountAmount);
+                    // Use dynamic VAT rate from store config
+                    const taxRate = get().getTaxRate();
+                    return DecimalUtil.calculatePercentage(taxableAmount, taxRate).toFixed(3);
                 },
 
                 getDiscountAmount: () => {
@@ -469,20 +603,329 @@ export const useCartStore = create<CartState>()(
                     return discount.value;
                 },
 
+                /**
+                 * Delivery Fee Calculation
+                 * - DELIVERY orders: Zone-based pricing (A=50, B=70, C=90, etc.)
+                 * - Platform orders (TALABAT, MARSOOL, INSTASHOP): Fixed 50 EGP
+                 * - Other orders: 0
+                 */
                 getDeliveryFee: () => {
                     const delivery = get().delivery;
-                    return delivery?.deliveryFee ?? '0.000';
+                    const orderType = get().orderType;
+
+                    // If delivery info is set, use the stored fee
+                    if (delivery) {
+                        return delivery.deliveryFee;
+                    }
+
+                    // Platform orders have fixed delivery charge
+                    if (PLATFORM_ORDER_TYPES.includes(orderType as any)) {
+                        return PLATFORM_DELIVERY_CHARGE.toFixed(3);
+                    }
+
+                    return '0.000';
                 },
 
+                /**
+                 * Get available delivery zones for the UI
+                 */
+                getDeliveryZones: () => DELIVERY_ZONES,
+
+                // =====================================================================
+                // PIPELINE CALCULATION METHODS (New)
+                // =====================================================================
+
+                /**
+                 * Set the calculation pipeline configuration
+                 * This should be loaded from store settings
+                 */
+                setPipelineConfig: (config) => {
+                    set({ pipelineConfig: config });
+                    // Re-run calculation with new pipeline
+                    if (config && get().usePipelineCalculation) {
+                        get().executePipelineCalculation();
+                    }
+                },
+
+                /**
+                 * Toggle between pipeline and legacy calculation
+                 */
+                setUsePipelineCalculation: (use) => {
+                    set({ usePipelineCalculation: use });
+                    if (use) {
+                        get().executePipelineCalculation();
+                    } else {
+                        set({ calculationBreakdown: null });
+                    }
+                },
+
+                /**
+                 * Execute the calculation pipeline and return breakdown
+                 * This matches the backend CalculationPipelineService logic
+                 */
+                executePipelineCalculation: () => {
+                    const state = get();
+                    const config = state.pipelineConfig;
+
+                    if (!config) {
+                        // Fallback to legacy calculation
+                        return state.getCalculationBreakdown() ?? state.executePipelineCalculation();
+                    }
+
+                    const orderType = state.orderType;
+                    const pipeline = config.orderTypePipelines?.[orderType];
+
+                    if (!pipeline) {
+                        console.warn(`No pipeline configured for order type: ${orderType}`);
+                        return state.getCalculationBreakdown() ?? state.executePipelineCalculation();
+                    }
+                    const stages: CalculationBreakdownStage[] = [];
+
+                    const context = {
+                        subtotal: '0',
+                        serviceCharge: '0',
+                        deliveryFee: '0',
+                        subtotalBeforeTax: '0',
+                        tax: '0',
+                        discount: '0',
+                        total: '0',
+                    };
+
+                    // Stage 1: ITEM_SUBTOTAL
+                    const itemSubtotal = state.getSubtotal();
+                    stages.push({
+                        stageId: 'ITEM_SUBTOTAL',
+                        stageName: 'Item Subtotal',
+                        description: 'Sum of all item prices',
+                        inputs: { items: state.items.map(i => ({ id: i.id, name: i.product.name, price: i.lineTotal })) },
+                        outputs: { subtotal: itemSubtotal },
+                        formula: 'SUM(lineTotal)',
+                    });
+                    context.subtotal = itemSubtotal;
+
+                    // Stage 2: SERVICE_CHARGE (if applicable)
+                    if (pipeline.pipeline.some(s => s.type === 'SERVICE_CHARGE')) {
+                        const serviceCharge = state.getServiceCharge();
+                        const rate = state.posConfig?.serviceChargeRate ?? DEFAULT_SERVICE_CHARGE_RATE;
+                        stages.push({
+                            stageId: 'SERVICE_CHARGE',
+                            stageName: 'Service Charge',
+                            description: `${(rate * 100).toFixed(0)}% service charge for dine-in orders`,
+                            inputs: { rate: rate.toFixed(2), basis: context.subtotal },
+                            outputs: { serviceCharge },
+                            formula: `${context.subtotal} × ${rate.toFixed(2)}`,
+                        });
+                        context.serviceCharge = serviceCharge;
+                    }
+
+                    // Stage 3: DELIVERY_FEE (if applicable)
+                    if (pipeline.pipeline.some(s => s.type === 'DELIVERY_FEE')) {
+                        const deliveryFee = state.getDeliveryFee();
+                        stages.push({
+                            stageId: 'DELIVERY_FEE',
+                            stageName: 'Delivery Fee',
+                            description: 'Zone-based delivery fee',
+                            inputs: { zone: state.delivery?.zone || 'N/A', baseFee: deliveryFee },
+                            outputs: { deliveryFee },
+                            formula: `ZONE_FEE(${state.delivery?.zoneCode || 'N/A'})`,
+                        });
+                        context.deliveryFee = deliveryFee;
+                    }
+
+                    // Stage 4: SUBTOTAL_BEFORE_TAX
+                    const subtotalBeforeTax = state.getSubtotalBeforeTax();
+                    stages.push({
+                        stageId: 'SUBTOTAL_BEFORE_TAX',
+                        stageName: 'Subtotal Before Tax',
+                        description: 'Subtotal + Service Charge',
+                        inputs: { subtotal: context.subtotal, serviceCharge: context.serviceCharge },
+                        outputs: { subtotalBeforeTax },
+                        formula: `${context.subtotal} + ${context.serviceCharge}`,
+                    });
+                    context.subtotalBeforeTax = subtotalBeforeTax;
+
+                    // Stage 5: DISCOUNT (if applicable)
+                    if (state.discount && pipeline.pipeline.some(s => s.type === 'DISCOUNT')) {
+                        const discountAmount = state.getDiscountAmount();
+                        stages.push({
+                            stageId: 'DISCOUNT',
+                            stageName: 'Discount',
+                            description: `${state.discount.type} discount`,
+                            inputs: { type: state.discount.type, value: state.discount.value, basis: context.subtotal },
+                            outputs: { discount: discountAmount },
+                            formula: state.discount.type === 'percentage'
+                                ? `${context.subtotal} × ${state.discount.value}%`
+                                : `-${state.discount.value}`,
+                        });
+                        context.discount = discountAmount;
+                    }
+
+                    // Stage 6: TAX
+                    const taxRate = state.getTaxRate();
+                    const taxAmount = state.getTaxAmount();
+                    stages.push({
+                        stageId: 'TAX',
+                        stageName: 'VAT (14%)',
+                        description: 'Value Added Tax',
+                        inputs: { rate: taxRate, taxableAmount: context.subtotalBeforeTax, discount: context.discount },
+                        outputs: { tax: taxAmount },
+                        formula: `(${context.subtotalBeforeTax} - ${context.discount}) × ${taxRate}%`,
+                    });
+                    context.tax = taxAmount;
+
+                    // Stage 7: TOTAL
+                    const total = state.getTotal();
+                    stages.push({
+                        stageId: 'TOTAL',
+                        stageName: 'Grand Total',
+                        description: 'Final amount including all charges',
+                        inputs: { subtotalBeforeTax: context.subtotalBeforeTax, tax: context.tax, discount: context.discount, deliveryFee: context.deliveryFee },
+                        outputs: { total },
+                        formula: `${context.subtotalBeforeTax} + ${context.tax} - ${context.discount} + ${context.deliveryFee}`,
+                    });
+                    context.total = total;
+
+                    const breakdown: CalculationBreakdown = {
+                        pipelineId: config.pipelineId,
+                        pipelineVersion: config.version,
+                        orderType,
+                        executedAt: new Date().toISOString(),
+                        stages,
+                        summary: {
+                            subtotal: context.subtotal,
+                            serviceCharge: context.serviceCharge,
+                            deliveryFee: context.deliveryFee,
+                            subtotalBeforeTax: context.subtotalBeforeTax,
+                            tax: context.tax,
+                            discount: context.discount,
+                            total: context.total,
+                        },
+                    };
+
+                    set({ calculationBreakdown: breakdown });
+                    return breakdown;
+                },
+
+                /**
+                 * Get calculation breakdown or execute if not exists
+                 */
+                getCalculationBreakdown: () => {
+                    const state = get();
+                    if (state.calculationBreakdown) {
+                        return state.calculationBreakdown;
+                    }
+                    if (state.usePipelineCalculation) {
+                        return state.executePipelineCalculation();
+                    }
+                    return state.getCalculationBreakdown() ?? state.executePipelineCalculation();
+                },
+
+                /**
+                 * Get legacy calculation breakdown (for backward compatibility)
+                 */
+                getLegacyCalculationBreakdown: (): CalculationBreakdown => {
+                    const state = get();
+                    const subtotal = state.getSubtotal();
+                    const serviceCharge = state.getServiceCharge();
+                    const deliveryFee = state.getDeliveryFee();
+                    const subtotalBeforeTax = state.getSubtotalBeforeTax();
+                    const tax = state.getTaxAmount();
+                    const discount = state.getDiscountAmount();
+                    const total = state.getTotal();
+
+                    return {
+                        pipelineId: 'legacy',
+                        pipelineVersion: '1.0.0',
+                        orderType: state.orderType,
+                        executedAt: new Date().toISOString(),
+                        stages: [
+                            {
+                                stageId: 'ITEM_SUBTOTAL',
+                                stageName: 'Item Subtotal',
+                                description: 'Sum of all item prices',
+                                inputs: {},
+                                outputs: { subtotal },
+                                formula: 'SUM(items)',
+                            },
+                            {
+                                stageId: 'SERVICE_CHARGE',
+                                stageName: 'Service Charge',
+                                description: state.orderType === 'DINE_IN'
+                                    ? `${((state.posConfig?.serviceChargeRate ?? DEFAULT_SERVICE_CHARGE_RATE) * 100).toFixed(0)}% service charge`
+                                    : 'Not applicable',
+                                inputs: { rate: (state.posConfig?.serviceChargeRate ?? DEFAULT_SERVICE_CHARGE_RATE).toString() },
+                                outputs: { serviceCharge },
+                                formula: serviceCharge !== '0.000'
+                                    ? `${subtotal} × ${(state.posConfig?.serviceChargeRate ?? DEFAULT_SERVICE_CHARGE_RATE).toFixed(2)}`
+                                    : 'N/A',
+                            },
+                            {
+                                stageId: 'DELIVERY_FEE',
+                                stageName: 'Delivery Fee',
+                                description: state.delivery ? `Zone ${state.delivery.zone}` : 'Not applicable',
+                                inputs: { zone: state.delivery?.zoneCode || 'N/A' },
+                                outputs: { deliveryFee },
+                                formula: state.delivery ? `ZONE_FEE(${state.delivery.zoneCode})` : '0',
+                            },
+                            {
+                                stageId: 'SUBTOTAL_BEFORE_TAX',
+                                stageName: 'Subtotal Before Tax',
+                                description: 'Amount before tax',
+                                inputs: { subtotal, serviceCharge },
+                                outputs: { subtotalBeforeTax },
+                                formula: `${subtotal} + ${serviceCharge}`,
+                            },
+                            {
+                                stageId: 'TAX',
+                                stageName: `VAT (${state.getTaxRate()}%)`,
+                                description: 'Value Added Tax',
+                                inputs: { rate: state.getTaxRate(), taxableAmount: DecimalUtil.subtract(subtotalBeforeTax, discount).toFixed(3) },
+                                outputs: { tax },
+                                formula: `(${subtotalBeforeTax} - ${discount}) × ${state.getTaxRate()}%`,
+                            },
+                            {
+                                stageId: 'DISCOUNT',
+                                stageName: 'Discount',
+                                description: state.discount ? `${state.discount.type} discount` : 'Not applicable',
+                                inputs: state.discount ? { type: state.discount.type, value: state.discount.value } : {},
+                                outputs: { discount },
+                                formula: state.discount
+                                    ? state.discount.type === 'percentage'
+                                        ? `${subtotal} × ${state.discount.value}%`
+                                        : `-${state.discount.value}`
+                                    : '0',
+                            },
+                            {
+                                stageId: 'TOTAL',
+                                stageName: 'Grand Total',
+                                description: 'Final amount',
+                                inputs: { subtotalBeforeTax, tax, discount, deliveryFee },
+                                outputs: { total },
+                                formula: `${subtotalBeforeTax} + ${tax} - ${discount} + ${deliveryFee}`,
+                            },
+                        ],
+                        summary: { subtotal, serviceCharge, deliveryFee, subtotalBeforeTax, tax, discount, total },
+                    };
+                },
+
+                /**
+                 * Total Amount
+                 * Calculation:
+                 * 1. Items Subtotal
+                 * 2. + Service Charge (for DINE_IN only)
+                 * 3. + VAT (on subtotal + service charge)
+                 * 4. - Discount
+                 * 5. + Delivery Fee (for delivery orders)
+                 */
                 getTotal: () => {
-                    const subtotal = get().getSubtotal();
+                    const subtotalBeforeTax = get().getSubtotalBeforeTax(); // Subtotal + Service Charge
                     const tax = get().getTaxAmount();
                     const discountAmount = get().getDiscountAmount();
                     const deliveryFee = get().getDeliveryFee();
 
                     return DecimalUtil.add(
                         DecimalUtil.subtract(
-                            DecimalUtil.add(subtotal, tax),
+                            DecimalUtil.add(subtotalBeforeTax, tax),
                             discountAmount
                         ),
                         deliveryFee
@@ -549,3 +992,23 @@ export const useCartStore = create<CartState>()(
         { name: 'CartStore' }
     )
 );
+
+/**
+ * useCartTotals hook
+ * Returns computed cart totals to prevent infinite loops
+ * Use this instead of calling getter methods directly in components
+ */
+export const useCartTotals = () => {
+    const store = useCartStore();
+
+    return {
+        itemCount: store.getItemCount(),
+        subtotal: store.getSubtotal(),
+        taxAmount: store.getTaxAmount(),
+        total: store.getTotal(),
+        discountAmount: store.getDiscountAmount(),
+        serviceCharge: store.getServiceCharge(),
+        deliveryFee: store.getDeliveryFee(),
+        totalQuantity: store.getTotalQuantity(),
+    };
+};

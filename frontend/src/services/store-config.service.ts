@@ -122,6 +122,82 @@ class StoreConfigurationService {
     async setNumber(storeId: string, key: string, value: number, category: string, description?: string): Promise<void> {
         await this.set(storeId, key, value, 'NUMBER', category, description);
     }
+
+    // ==========================================================================
+    // H-POS Enterprise Configuration
+    // ==========================================================================
+
+    private posConfigCache: POSConfig | null = null;
+    private posConfigExpiry: number = 0;
+    private readonly POS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    /**
+     * Get complete POS configuration for the current store
+     * Cached for 5 minutes to reduce API calls
+     */
+    async getPOSConfig(storeId: string): Promise<POSConfig> {
+        // Return cached config if still valid
+        if (this.posConfigCache && Date.now() < this.posConfigExpiry) {
+            return this.posConfigCache;
+        }
+
+        try {
+            const response = await apiClient.get<ApiResponse<POSConfig>>(
+                `${this.baseUrl}/${storeId}/configurations/pos`
+            );
+            this.posConfigCache = response.data.data || DEFAULT_POS_CONFIG;
+            this.posConfigExpiry = Date.now() + this.POS_CACHE_TTL_MS;
+            return this.posConfigCache;
+        } catch (error) {
+            console.warn('[StoreConfigService] Failed to fetch POS config, using defaults:', error);
+            return DEFAULT_POS_CONFIG;
+        }
+    }
+
+    /**
+     * Clear POS config cache (call when store changes or config is updated)
+     */
+    clearPOSConfigCache(): void {
+        this.posConfigCache = null;
+        this.posConfigExpiry = 0;
+    }
 }
+
+// =============================================================================
+// H-POS Configuration Types
+// =============================================================================
+
+export interface POSConfig {
+    vatRate: number;
+    serviceChargeRate: number;
+    serviceChargeAppliesTo: string[];
+    currencyCode: string;
+    currencySymbol: string;
+    currencyDecimalPlaces: number;
+    platformDeliveryCharge: number;
+    enableDeliveryZones: boolean;
+    requireTableForDineIn: boolean;
+    requireCustomerCount: boolean;
+    voidRequiresManager: boolean;
+    deleteAfterSaveRequiresManager: boolean;
+    returnRequiresManager: boolean;
+}
+
+// Default configuration (fallback if API fails)
+export const DEFAULT_POS_CONFIG: POSConfig = {
+    vatRate: 0.15, // 15% ZATCA Phase 2 Saudi Arabia
+    serviceChargeRate: 0.12,
+    serviceChargeAppliesTo: ['DINE_IN'],
+    currencyCode: 'EGP',
+    currencySymbol: 'ج.م',
+    currencyDecimalPlaces: 2,
+    platformDeliveryCharge: 50,
+    enableDeliveryZones: true,
+    requireTableForDineIn: true,
+    requireCustomerCount: true,
+    voidRequiresManager: true,
+    deleteAfterSaveRequiresManager: true,
+    returnRequiresManager: true,
+};
 
 export const storeConfigService = new StoreConfigurationService();
