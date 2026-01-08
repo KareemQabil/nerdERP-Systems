@@ -6,7 +6,7 @@ node_modules/
 dist/
 build/
 *.tsbuildinfo
-frontend/test-results
+frontend/test-results/
 
 # Environment variables
 .env
